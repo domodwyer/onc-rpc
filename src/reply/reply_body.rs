@@ -1,0 +1,69 @@
+use super::{AcceptedReply, RejectedReply};
+use crate::Error;
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use std::convert::TryFrom;
+use std::io::Cursor;
+
+const REPLY_ACCEPTED: u32 = 0;
+const REPLY_DENIED: u32 = 1;
+
+/// `ReplyBody` defines the response to an RPC invocation.
+#[derive(Debug, PartialEq)]
+pub enum ReplyBody<'a> {
+    /// The server accepted the request credentials.
+    Accepted(AcceptedReply<'a>),
+
+    /// The server rejected the request credentials.
+    Denied(RejectedReply),
+}
+
+impl<'a> ReplyBody<'a> {
+    pub(crate) fn from_cursor(r: &mut Cursor<&'a [u8]>) -> Result<Self, Error> {
+        match r.read_u32::<BigEndian>()? {
+            REPLY_ACCEPTED => Ok(ReplyBody::Accepted(AcceptedReply::from_cursor(r)?)),
+            REPLY_DENIED => Ok(ReplyBody::Denied(RejectedReply::from_cursor(r)?)),
+            v => Err(Error::InvalidReplyType(v)),
+        }
+    }
+
+    /// Serialises this `ReplyBody` into `buf`, advancing the cursor position by
+    /// [`serialised_len`](ReplyBody::serialised_len) bytes.
+    pub fn serialise_into(&self, buf: &mut Cursor<Vec<u8>>) -> Result<(), std::io::Error> {
+        match self {
+            ReplyBody::Accepted(b) => {
+                buf.write_u32::<BigEndian>(REPLY_ACCEPTED)?;
+                b.serialise_into(buf)
+            }
+            ReplyBody::Denied(b) => {
+                buf.write_u32::<BigEndian>(REPLY_DENIED)?;
+                b.serialise_into(buf)
+            }
+        }
+    }
+
+    /// Returns the on-wire length of this `ReplyBody` once serialised,
+    /// including the message header.
+    pub fn serialised_len(&self) -> u32 {
+        let mut len = 0;
+
+        // Discriminator
+        len += 4;
+
+        // Variant length
+        len += match self {
+            ReplyBody::Accepted(b) => b.serialised_len(),
+            ReplyBody::Denied(b) => b.serialised_len(),
+        };
+
+        len
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for ReplyBody<'a> {
+    type Error = Error;
+
+    fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
+        let mut c = Cursor::new(v);
+        ReplyBody::from_cursor(&mut c)
+    }
+}

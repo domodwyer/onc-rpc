@@ -1,0 +1,28 @@
+[package]
+name = "onc-rpc"
+version = "0.1.0"
+authors = ["Dom Dwyer <dom@itsallbroken.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+license = "BSD-3-Clause"
+description = "Open Network Computing / Sun RPC types and fast serialisation"
+readme = "README.md"
+documentation = "https://docs.rs/onc-rpc"
+repository = "https://github.com/domodwyer/onc-rpc"
+keywords = ["onc", "rpc", "sun", "protocol", "xdr"]
+categories = ["network-programming", "encoding", "parser-implementations", "api-bindings"]
+
+[dependencies]
+thiserror = "1.0.19"
+byteorder = "1.3.4"
+smallvec = "1.4.0"
+
+[dev-dependencies]
+hex-literal = "0.2.1"
+criterion = "0.3.2"
+
+[[bench]]
+name = "bench"
+harness = false
