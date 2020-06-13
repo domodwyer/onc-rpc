@@ -14,21 +14,16 @@ const REPLY_SYSTEM_ERR: u32 = 5;
 /// A type sent in response to a request that contains credentials accepted by
 /// the server.
 #[derive(Debug, PartialEq)]
-pub struct AcceptedReply<'a> {
-    auth_verifier: AuthFlavor<'a>,
-    status: AcceptedStatus<'a>,
+pub struct AcceptedReply<T, P>
+where
+    T: AsRef<[u8]>,
+    P: AsRef<[u8]>,
+{
+    auth_verifier: AuthFlavor<T>,
+    status: AcceptedStatus<P>,
 }
 
-impl<'a> AcceptedReply<'a> {
-    /// Constructs a new `AcceptedReply` with the specified
-    /// [`AcceptedStatus`](AcceptedStatus).
-    pub fn new(auth_verifier: AuthFlavor<'a>, status: AcceptedStatus<'a>) -> Self {
-        AcceptedReply {
-            auth_verifier,
-            status,
-        }
-    }
-
+impl<'a> AcceptedReply<&'a [u8], &'a [u8]> {
     /// Constructs a new `AcceptedReply` by parsing the wire format read from
     /// `r`.
     ///
@@ -39,6 +34,21 @@ impl<'a> AcceptedReply<'a> {
             auth_verifier: AuthFlavor::from_cursor(r)?,
             status: AcceptedStatus::from_cursor(r)?,
         })
+    }
+}
+
+impl<T, P> AcceptedReply<T, P>
+where
+    T: AsRef<[u8]>,
+    P: AsRef<[u8]>,
+{
+    /// Constructs a new `AcceptedReply` with the specified
+    /// [`AcceptedStatus`](AcceptedStatus).
+    pub fn new(auth_verifier: AuthFlavor<T>, status: AcceptedStatus<P>) -> Self {
+        AcceptedReply {
+            auth_verifier,
+            status,
+        }
     }
 
     /// Serialises this `AcceptedReply` into `buf`, advancing the cursor
@@ -54,17 +64,17 @@ impl<'a> AcceptedReply<'a> {
     }
 
     /// Returns the auth verifier for use by the client to validate the server.
-    pub fn auth_verifier(&'a self) -> &AuthFlavor<'a> {
+    pub fn auth_verifier(&self) -> &AuthFlavor<T> {
         &self.auth_verifier
     }
 
     /// Returns the status code of the response.
-    pub fn status(&'a self) -> &AcceptedStatus<'a> {
+    pub fn status(&self) -> &AcceptedStatus<P> {
         &self.status
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for AcceptedReply<'a> {
+impl<'a> TryFrom<&'a [u8]> for AcceptedReply<&'a [u8], &'a [u8]> {
     type Error = Error;
 
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
@@ -75,9 +85,13 @@ impl<'a> TryFrom<&'a [u8]> for AcceptedReply<'a> {
 
 /// The response status code for a request that contains valid credentials.
 #[derive(Debug, PartialEq)]
-pub enum AcceptedStatus<'a> {
-    /// The RPC was sucessful, and the response is contained in the variant.
-    Success(&'a [u8]),
+pub enum AcceptedStatus<P>
+where
+    P: AsRef<[u8]>,
+{
+    /// The RPC was successful, and the response payload is contained in the
+    /// variant.
+    Success(P),
 
     /// The specified program identifier has no handler in this server.
     ///
@@ -114,7 +128,7 @@ pub enum AcceptedStatus<'a> {
     SystemError,
 }
 
-impl<'a> AcceptedStatus<'a> {
+impl<'a> AcceptedStatus<&'a [u8]> {
     /// Constructs a new `AcceptedStatus` by parsing the wire format read from
     /// `r`.
     ///
@@ -138,13 +152,26 @@ impl<'a> AcceptedStatus<'a> {
         Ok(reply)
     }
 
+    fn new_success(r: &mut Cursor<&'a [u8]>) -> Self {
+        let data = *r.get_ref();
+        let start = r.position() as usize;
+        let payload = &data[start..];
+
+        AcceptedStatus::Success(payload)
+    }
+}
+
+impl<P> AcceptedStatus<P>
+where
+    P: AsRef<[u8]>,
+{
     /// Serialises this `AcceptedStatus` into `buf`, advancing the cursor
     /// position by [`serialised_len`](AcceptedStatus::serialised_len) bytes.
     pub fn serialise_into(&self, buf: &mut Cursor<Vec<u8>>) -> Result<(), std::io::Error> {
         match self {
-            AcceptedStatus::Success(d) => {
+            AcceptedStatus::Success(p) => {
                 buf.write_u32::<BigEndian>(REPLY_SUCCESS)?;
-                buf.write_all(d)
+                buf.write_all(p.as_ref())
             }
             AcceptedStatus::ProgramUnavailable => buf.write_u32::<BigEndian>(REPLY_PROG_UNAVAIL),
             AcceptedStatus::ProgramMismatch { low: l, high: h } => {
@@ -167,7 +194,7 @@ impl<'a> AcceptedStatus<'a> {
 
         // Variant length
         len += match self {
-            AcceptedStatus::Success(d) => d.len() as u32,
+            AcceptedStatus::Success(p) => p.as_ref().len() as u32,
             AcceptedStatus::ProgramUnavailable => 0,
             AcceptedStatus::ProgramMismatch { low: _l, high: _h } => 8,
             AcceptedStatus::ProcedureUnavailable => 0,
@@ -177,17 +204,9 @@ impl<'a> AcceptedStatus<'a> {
 
         len
     }
-
-    fn new_success(r: &mut Cursor<&'a [u8]>) -> Self {
-        let data = *r.get_ref();
-        let start = r.position() as usize;
-        let payload = &data[start..];
-
-        AcceptedStatus::Success(payload)
-    }
 }
 
-impl<'a> TryFrom<&'a [u8]> for AcceptedStatus<'a> {
+impl<'a> TryFrom<&'a [u8]> for AcceptedStatus<&'a [u8]> {
     type Error = Error;
 
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {

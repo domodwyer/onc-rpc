@@ -4,6 +4,7 @@ use onc_rpc::{
     auth::{AuthFlavor, AuthUnixParams},
     CallBody, MessageType, RpcMessage,
 };
+use smallvec::smallvec;
 use std::convert::TryInto;
 use std::io::Cursor;
 
@@ -17,16 +18,17 @@ pub fn auth(c: &mut Criterion) {
         let raw_ref: &[u8] = raw.as_ref();
 
         b.iter(|| {
-            let a: AuthFlavor = raw_ref.try_into().unwrap();
+            let a: AuthFlavor<&[u8]> = raw_ref.try_into().unwrap();
             black_box(a)
         })
     });
 
+    // TODO: bench with Bytes
+
     c.bench_function("auth_unix_gids_read", |b| {
-        let gids = vec![
-            501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399,
-        ];
-        let p = AuthUnixParams::new(0, "", 501, 20, Some(&gids));
+        let gids =
+            smallvec![501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399,];
+        let p = AuthUnixParams::new(0, "", 501, 20, Some(gids));
 
         b.iter(|| black_box(p.gids()))
     });
@@ -40,7 +42,7 @@ pub fn auth(c: &mut Criterion) {
         let raw_ref: &[u8] = raw.as_ref();
 
         b.iter(|| {
-            let a: AuthFlavor = raw_ref.try_into().unwrap();
+            let a: AuthFlavor<&[u8]> = raw_ref.try_into().unwrap();
             black_box(a)
         })
     });
@@ -50,24 +52,23 @@ pub fn rpc_message(c: &mut Criterion) {
     c.bench_function("deserialise_rpc_message", |b| {
         let raw = hex!(
             "80000098265ec1060000000000000002000186a300000004000000010000000100
-			0000180000000000000000000000000000000000000001000000000000000000000
-			0000000000c6163636573732020202020200000000000000003000000160000001f
-			4300004d1a436f6c452240ea4c70a1b52d7f97418e6601a10e02009cf2d59c00000
-			000030000003f00000009000000021010011a00b0a23a"
+    		0000180000000000000000000000000000000000000001000000000000000000000
+    		0000000000c6163636573732020202020200000000000000003000000160000001f
+    		4300004d1a436f6c452240ea4c70a1b52d7f97418e6601a10e02009cf2d59c00000
+    		000030000003f00000009000000021010011a00b0a23a"
         );
         let raw_ref: &[u8] = raw.as_ref();
 
         b.iter(|| {
-            let a: RpcMessage = raw_ref.try_into().unwrap();
+            let a = RpcMessage::from_bytes(raw_ref).unwrap();
             black_box(a)
         })
     });
 
     c.bench_function("serialise_into_rpc_message_no_payload", |b| {
-        let gids = vec![
-            501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399,
-        ];
-        let params = AuthUnixParams::new(0, "", 501, 20, Some(&gids));
+        let gids =
+            smallvec![501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399,];
+        let params = AuthUnixParams::new(0, "", 501, 20, Some(gids));
         let payload = vec![];
         let msg = RpcMessage::new(
             4242,

@@ -15,17 +15,22 @@ const MESSAGE_TYPE_REPLY: u32 = 1;
 
 // TODO: serialise_ioslice() -> IoSliceBuffer
 
+// TODO: from_Bytes for RpcMessage<T> where T: AsRef<[u8]>
+
 /// The type of RPC message.
 #[derive(Debug, PartialEq)]
-pub enum MessageType<'a> {
+pub enum MessageType<T, P>
+where
+    T: AsRef<[u8]>,
+    P: AsRef<[u8]>,
+{
     /// This message is invoking an RPC.
-    Call(CallBody<'a>),
-
+    Call(CallBody<T, P>),
     /// This message is a response to an RPC request.
-    Reply(ReplyBody<'a>),
+    Reply(ReplyBody<T, P>),
 }
 
-impl<'a> MessageType<'a> {
+impl<'a> MessageType<&'a [u8], &'a [u8]> {
     /// Constructs a new `MessageType` by parsing the wire format read from `r`.
     ///
     /// `from_cursor` advances the position of `r` to the end of the
@@ -37,7 +42,13 @@ impl<'a> MessageType<'a> {
             v => Err(Error::InvalidMessageType(v)),
         }
     }
+}
 
+impl<T, P> MessageType<T, P>
+where
+    T: AsRef<[u8]>,
+    P: AsRef<[u8]>,
+{
     /// Serialises this `MessageType` into `buf`, advancing the cursor position
     /// by [`serialised_len`](MessageType::serialised_len) bytes.
     pub fn serialise_into(&self, buf: &mut Cursor<Vec<u8>>) -> Result<(), std::io::Error> {
@@ -65,26 +76,25 @@ impl<'a> MessageType<'a> {
     }
 }
 
-/// An Open Network Computing RPC message.
+/// An Open Network Computing RPC message, generic over a source of bytes (`T)
+/// and a payload buffer (`P`).
 #[derive(Debug, PartialEq)]
-pub struct RpcMessage<'a> {
+pub struct RpcMessage<T, P>
+where
+    T: AsRef<[u8]>,
+    P: AsRef<[u8]>,
+{
     xid: u32,
-    message_type: MessageType<'a>,
+    message_type: MessageType<T, P>,
 }
 
-impl<'a> RpcMessage<'a> {
-    /// Construct a new `RpcMessage` with the specified transaction ID and
-    /// message body.
-    pub fn new(xid: u32, message_type: MessageType<'a>) -> Self {
-        RpcMessage { xid, message_type }
-    }
-
+impl<'a> RpcMessage<&'a [u8], &'a [u8]> {
     /// Deserialises a new `RpcMessage` from `buf`.
     ///
     /// Buf must contain exactly 1 message - if `buf` contains an incomplete
     /// message, or `buf` contains trailing bytes after the message
     /// [`IncompleteMessage`](crate::Error::IncompleteMessage) is returned.
-    pub fn from_slice(buf: &'a [u8]) -> Result<RpcMessage<'a>, Error> {
+    pub fn from_bytes(buf: &'a [u8]) -> Result<RpcMessage<&'a [u8], &'a [u8]>, Error> {
         // Unwrap the message header, validating the length of data.
         let data = unwrap_header(buf)?;
 
@@ -111,6 +121,18 @@ impl<'a> RpcMessage<'a> {
         }
 
         Ok(msg)
+    }
+}
+
+impl<T, P> RpcMessage<T, P>
+where
+    T: AsRef<[u8]>,
+    P: AsRef<[u8]>,
+{
+    /// Construct a new `RpcMessage` with the specified transaction ID and
+    /// message body.
+    pub fn new(xid: u32, message_type: MessageType<T, P>) -> Self {
+        RpcMessage { xid, message_type }
     }
 
     /// Write this `RpcMessage` into `buf`, advancing the cursor to the end of
@@ -156,8 +178,10 @@ impl<'a> RpcMessage<'a> {
     /// this method is the equivalent of:
     ///
     /// ```
+    /// # use onc_rpc::{*, auth::*};
+    /// # use std::io::Cursor;
     /// # let payload = vec![];
-    /// # let msg = RpcMessage::new(
+    /// # let msg = RpcMessage::<&[u8], &[u8]>::new(
     /// #     4242,
     /// #     MessageType::Call(CallBody::new(
     /// #         100000,
@@ -169,9 +193,9 @@ impl<'a> RpcMessage<'a> {
     /// #     )),
     /// # );
     /// #
-    /// let mut buf = Vec::with_capacity(msg.serialised_len());
+    /// let mut buf = Vec::with_capacity(msg.serialised_len() as usize);
     /// let mut c = Cursor::new(buf);
-    /// msg.serialise_into(&mut c)?;
+    /// msg.serialise_into(&mut c);
     /// ```
     pub fn serialise(&self) -> Result<Vec<u8>, std::io::Error> {
         let mut buf = Cursor::new(Vec::with_capacity(self.serialised_len() as usize));
@@ -192,13 +216,13 @@ impl<'a> RpcMessage<'a> {
     }
 
     /// The [`MessageType`](MessageType) contained in this request.
-    pub fn message(&self) -> &MessageType<'a> {
+    pub fn message(&self) -> &MessageType<T, P> {
         &self.message_type
     }
 
     /// Returns the [`CallBody`](CallBody) in this request, or `None` if this
     /// message is not a RPC call request.
-    pub fn call_body(&self) -> Option<&CallBody<'a>> {
+    pub fn call_body(&self) -> Option<&CallBody<T, P>> {
         match self.message_type {
             MessageType::Call(ref b) => Some(&b),
             _ => None,
@@ -207,7 +231,7 @@ impl<'a> RpcMessage<'a> {
 
     /// Returns the [`ReplyBody`](ReplyBody) in this request, or `None` if this
     /// message is not a RPC response.
-    pub fn reply_body(&'a self) -> Option<&'a ReplyBody<'a>> {
+    pub fn reply_body(&self) -> Option<&ReplyBody<T, P>> {
         match self.message_type {
             MessageType::Reply(ref b) => Some(&b),
             _ => None,
@@ -215,11 +239,11 @@ impl<'a> RpcMessage<'a> {
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for RpcMessage<'a> {
+impl<'a> TryFrom<&'a [u8]> for RpcMessage<&'a [u8], &'a [u8]> {
     type Error = Error;
 
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
-        RpcMessage::from_slice(v)
+        RpcMessage::from_bytes(v)
     }
 }
 
@@ -242,7 +266,6 @@ fn unwrap_header(data: &[u8]) -> Result<&[u8], Error> {
     //      the length in bytes of the fragment's data.  The boolean value is the
     //      highest-order bit of the header; the length is the 31 low-order bits.
     //
-    #[allow(clippy::indexing_slicing)]
     let header = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
 
     // Ensure the "last fragment" bit is set
@@ -263,6 +286,21 @@ fn unwrap_header(data: &[u8]) -> Result<&[u8], Error> {
     }
 
     Ok(remaining_data)
+}
+
+/// Reads the message header from data, and returns the expected wire length of
+/// the RPC message.
+///
+/// `data` must contain at least 4 bytes, and must be the start of an RPC
+/// message for this call to return valid data.
+pub fn expected_message_len(data: &[u8]) -> Result<u32, Error> {
+    if data.len() < 4 {
+        return Err(Error::IncompleteHeader);
+    }
+
+    let header = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
+
+    Ok(header & !LAST_FRAGMENT_BIT)
 }
 
 /// Returns a subslice of len bytes from c without copying if it is safe to do
@@ -288,7 +326,6 @@ mod tests {
     use crate::AcceptedStatus;
     use hex_literal::hex;
     use smallvec::smallvec;
-    use std::convert::TryInto;
 
     #[test]
     fn test_unwrap_header() {
@@ -337,7 +374,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rpcmessage_auth_unix<'a>() {
+    fn test_rpcmessage_auth_unix() {
         // Frame 3: 354 bytes on wire (2832 bits), 354 bytes captured (2832 bits) on interface en0, id 0
         // Ethernet II, Src: Apple_47:f4:fb (f8:ff:c2:47:f4:fb), Dst: PcsCompu_76:48:20 (08:00:27:76:48:20)
         // Internet Protocol Version 4, Src: client (192.168.1.188), Dst: server (192.168.1.189)
@@ -426,7 +463,7 @@ mod tests {
 			e312e3138382e3233382e32333500000000000002"
         );
 
-        let msg: RpcMessage<'a> = RAW.as_ref().try_into().expect("failed to parse message");
+        let msg = RpcMessage::from_bytes(RAW.as_ref()).expect("failed to parse message");
         assert_eq!(msg.xid(), 643743997);
         assert_eq!(msg.serialised_len(), 288);
 
@@ -443,12 +480,12 @@ mod tests {
         };
 
         assert_eq!(auth.stamp(), 0x00000000);
-        assert_eq!(auth.machine_name(), "");
+        assert_eq!(auth.machine_name_str(), "");
         assert_eq!(auth.uid(), 501);
         assert_eq!(auth.gid(), 20);
         assert_eq!(
             auth.gids(),
-            Some(smallvec![
+            Some(&smallvec![
                 501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399
             ])
         );
@@ -547,7 +584,7 @@ mod tests {
 			000030000003f00000009000000021010011a00b0a23a"
         );
 
-        let msg: RpcMessage<'a> = RAW.as_ref().try_into().expect("failed to parse message");
+        let msg = RpcMessage::from_bytes(RAW.as_ref()).expect("failed to parse message");
         assert_eq!(msg.xid(), 643744006);
         assert_eq!(msg.serialised_len(), 156);
 
@@ -564,11 +601,11 @@ mod tests {
         };
 
         assert_eq!(params.stamp(), 0x00000000);
-        assert_eq!(params.machine_name(), "");
+        assert_eq!(params.machine_name_str(), "");
         assert_eq!(params.uid(), 0);
         assert_eq!(params.gid(), 0);
         assert_eq!(params.serialised_len(), 24);
-        assert_eq!(params.gids(), Some(smallvec![0]));
+        assert_eq!(params.gids(), Some(&smallvec![0]));
 
         assert_eq!(*body.auth_verifier(), AuthFlavor::AuthNone(None));
         assert_eq!(body.auth_verifier().serialised_len(), 8);
@@ -604,7 +641,7 @@ mod tests {
             0020200000000000000"
         );
 
-        let msg: RpcMessage<'a> = RAW.as_ref().try_into().expect("failed to parse message");
+        let msg = RpcMessage::from_bytes(RAW.as_ref()).expect("failed to parse message");
         assert_eq!(msg.xid(), 643743997);
         assert_eq!(msg.serialised_len(), 76);
 
@@ -637,7 +674,7 @@ mod tests {
             232323232300232300"
         );
 
-        let msg = RpcMessage::from_slice(RAW.as_ref());
+        let msg = RpcMessage::from_bytes(RAW.as_ref());
         match msg {
             Err(Error::IncompleteMessage {
                 buffer_len: b,
@@ -646,7 +683,7 @@ mod tests {
                 assert_eq!(b, 39);
                 assert_eq!(e, 28);
             }
-            _ => panic!("expected incomplete error"),
+            v => panic!("expected incomplete error, got {:?}", v),
         }
     }
 
@@ -657,13 +694,13 @@ mod tests {
         let buf1 = [1; 8];
         let ioslice = IoSlice::new(&buf1);
 
-        let body = CallBody::new(
+        let body = CallBody::<&[u8], _>::new(
             1,
             2,
             3,
             AuthFlavor::AuthNone(None),
             AuthFlavor::AuthNone(None),
-            &ioslice,
+            ioslice.as_ref(),
         );
 
         let msg = RpcMessage::new(42, MessageType::Call(body));

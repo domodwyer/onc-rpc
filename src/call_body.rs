@@ -12,18 +12,21 @@ const RPC_VERSION: u32 = 2;
 /// in the [RFC](https://tools.ietf.org/html/rfc5531#section-9). The `rpcvers`
 /// field (representing the RPC protocol version) is hard coded to `2`.
 #[derive(Debug, PartialEq)]
-pub struct CallBody<'a> {
+pub struct CallBody<T, P>
+where
+    T: AsRef<[u8]>,
+{
     program: u32,
     program_version: u32,
     procedure: u32,
 
-    auth_credentials: AuthFlavor<'a>,
-    auth_verifier: AuthFlavor<'a>,
+    auth_credentials: AuthFlavor<T>,
+    auth_verifier: AuthFlavor<T>,
 
-    payload: &'a [u8],
+    payload: P,
 }
 
-impl<'a> CallBody<'a> {
+impl<'a> CallBody<&'a [u8], &'a [u8]> {
     /// Constructs a new `CallBody` by parsing the wire format read from `r`.
     ///
     /// `from_cursor` advances the position of `r` to the end of the `CallBody`
@@ -54,15 +57,21 @@ impl<'a> CallBody<'a> {
             payload,
         })
     }
+}
 
+impl<T, P> CallBody<T, P>
+where
+    T: AsRef<[u8]>,
+    P: AsRef<[u8]>,
+{
     /// Construct a new RPC invocation request.
     pub fn new(
         program: u32,
         program_version: u32,
         procedure: u32,
-        auth_credentials: AuthFlavor<'a>,
-        auth_verifier: AuthFlavor<'a>,
-        payload: &'a [u8],
+        auth_credentials: AuthFlavor<T>,
+        auth_verifier: AuthFlavor<T>,
+        payload: P,
     ) -> Self {
         CallBody {
             program,
@@ -85,7 +94,7 @@ impl<'a> CallBody<'a> {
         self.auth_credentials.serialise_into(buf)?;
         self.auth_verifier.serialise_into(buf)?;
 
-        buf.write_all(self.payload)
+        buf.write_all(self.payload.as_ref())
     }
 
     /// Returns the on-wire length of this call body once serialised.
@@ -122,7 +131,7 @@ impl<'a> CallBody<'a> {
     }
 
     /// The credentials to use for authenticating the request.
-    pub fn auth_credentials(&self) -> &AuthFlavor<'a> {
+    pub fn auth_credentials(&self) -> &AuthFlavor<T> {
         &self.auth_credentials
     }
 
@@ -136,17 +145,17 @@ impl<'a> CallBody<'a> {
     /// historically separate, but are always used together as one logical
     /// entity.
     /// ```
-    pub fn auth_verifier(&self) -> &AuthFlavor<'a> {
+    pub fn auth_verifier(&self) -> &AuthFlavor<T> {
         &self.auth_verifier
     }
 
     /// Returns a reference to the opaque message payload bytes.
     pub fn payload(&self) -> &[u8] {
-        self.payload
+        self.payload.as_ref()
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for CallBody<'a> {
+impl<'a> TryFrom<&'a [u8]> for CallBody<&'a [u8], &'a [u8]> {
     type Error = Error;
 
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {

@@ -9,15 +9,19 @@ const REPLY_DENIED: u32 = 1;
 
 /// `ReplyBody` defines the response to an RPC invocation.
 #[derive(Debug, PartialEq)]
-pub enum ReplyBody<'a> {
+pub enum ReplyBody<T, P>
+where
+    T: AsRef<[u8]>,
+    P: AsRef<[u8]>,
+{
     /// The server accepted the request credentials.
-    Accepted(AcceptedReply<'a>),
+    Accepted(AcceptedReply<T, P>),
 
     /// The server rejected the request credentials.
     Denied(RejectedReply),
 }
 
-impl<'a> ReplyBody<'a> {
+impl<'a> ReplyBody<&'a [u8], &'a [u8]> {
     pub(crate) fn from_cursor(r: &mut Cursor<&'a [u8]>) -> Result<Self, Error> {
         match r.read_u32::<BigEndian>()? {
             REPLY_ACCEPTED => Ok(ReplyBody::Accepted(AcceptedReply::from_cursor(r)?)),
@@ -25,7 +29,13 @@ impl<'a> ReplyBody<'a> {
             v => Err(Error::InvalidReplyType(v)),
         }
     }
+}
 
+impl<T, P> ReplyBody<T, P>
+where
+    T: AsRef<[u8]>,
+    P: AsRef<[u8]>,
+{
     /// Serialises this `ReplyBody` into `buf`, advancing the cursor position by
     /// [`serialised_len`](ReplyBody::serialised_len) bytes.
     pub fn serialise_into(&self, buf: &mut Cursor<Vec<u8>>) -> Result<(), std::io::Error> {
@@ -59,7 +69,7 @@ impl<'a> ReplyBody<'a> {
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for ReplyBody<'a> {
+impl<'a> TryFrom<&'a [u8]> for ReplyBody<&'a [u8], &'a [u8]> {
     type Error = Error;
 
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
