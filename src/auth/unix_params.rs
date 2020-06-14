@@ -1,7 +1,10 @@
+use crate::bytes_ext::BytesReaderExt;
 use crate::read_slice_bytes;
 use crate::Error;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use bytes::Bytes;
 use smallvec::SmallVec;
+use std::convert::TryFrom;
 use std::io::{Cursor, Write};
 
 /// `AuthUnixParams` represents the structures referred to as both `AUTH_UNIX`
@@ -41,7 +44,7 @@ impl<'a> AuthUnixParams<&'a [u8]> {
         // Read the variable length name
         let name_len = r.read_u32::<BigEndian>()?;
         if name_len > 16 {
-            return Err(Error::InvalidAuthData);
+            return Err(Error::InvalidLength);
         }
 
         // Read the string without copying
@@ -179,6 +182,39 @@ where
     }
 }
 
+impl TryFrom<Bytes> for AuthUnixParams<Bytes> {
+    type Error = Error;
+
+    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+        let stamp = v.try_u32()?;
+
+        let name = v.try_array(16)?;
+        let uid = v.try_u32()?;
+        let gid = v.try_u32()?;
+
+        let gids_count = v.try_u32()? as usize;
+        let gids = match gids_count {
+            0 => None,
+            c if c <= 16 => {
+                let mut vec = SmallVec::<[u32; 16]>::new();
+                for _ in 0..c {
+                    vec.push(v.try_u32()?);
+                }
+                Some(vec)
+            }
+            _ => return Err(Error::InvalidAuthData),
+        };
+
+        Ok(AuthUnixParams {
+            stamp,
+            machine_name: name,
+            uid,
+            gid,
+            gids,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,6 +274,7 @@ mod tests {
         let mut c = Cursor::new(want.as_ref());
         let s = AuthUnixParams::from_cursor(&mut c, 84).expect("deserialise failed");
 
+        assert_eq!(s.serialised_len(), 84);
         assert_eq!(params, s);
     }
 
@@ -260,6 +297,95 @@ mod tests {
         let mut c = Cursor::new(want.as_ref());
 
         let s = AuthUnixParams::from_cursor(&mut c, 24).expect("deserialise failed");
+
+        assert_eq!(s.stamp(), 0);
+        assert_eq!(s.machine_name_str(), "");
+        assert_eq!(s.uid(), 0);
+        assert_eq!(s.gid(), 0);
+        assert_eq!(s.gids(), Some(&smallvec![0]));
+        assert_eq!(s.serialised_len(), 24);
+
+        let mut buf = Cursor::new(Vec::new());
+        s.serialise_into(&mut buf).expect("failed to serialise");
+
+        let buf = buf.into_inner();
+        assert_eq!(want.len(), buf.len());
+        assert_eq!(want.as_ref(), buf.as_slice());
+    }
+
+    #[test]
+    fn test_deserialise_bytes() {
+        // Known good wire value trimmed of flavor + length bytes.
+        //
+        // Credentials
+        //     Flavor: AUTH_UNIX (1)
+        //     Length: 84
+        //     Stamp: 0x00000000
+        //     Machine Name: <EMPTY>
+        //         length: 0
+        //         contents: <EMPTY>
+        //     UID: 501
+        //     GID: 20
+        //     Auxiliary GIDs (16) [501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399]
+        //         GID: 501
+        //         GID: 12
+        //         GID: 20
+        //         GID: 61
+        //         GID: 79
+        //         GID: 80
+        //         GID: 81
+        //         GID: 98
+        //         GID: 701
+        //         GID: 33
+        //         GID: 100
+        //         GID: 204
+        //         GID: 250
+        //         GID: 395
+        //         GID: 398
+        //         GID: 399
+        //
+        let want = hex!(
+            "0000000000000000000001f50000001400000010000001f50000000c0000001400
+            00003d0000004f000000500000005100000062000002bd000000210000006400000
+            0cc000000fa0000018b0000018e0000018f"
+        );
+        let static_want: &'static [u8] = Box::leak(Box::new(want));
+
+        let got =
+            AuthUnixParams::try_from(Bytes::from(static_want)).expect("failed to deserialise");
+
+        assert_eq!(got.stamp(), 0);
+        assert_eq!(got.machine_name_str(), "");
+        assert_eq!(got.uid(), 501);
+        assert_eq!(got.gid(), 20);
+        assert_eq!(
+            got.gids(),
+            Some(&smallvec![
+                501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399
+            ])
+        );
+        assert_eq!(got.serialised_len(), 84);
+    }
+
+    #[test]
+    fn test_empty_bytes() {
+        // Known good wire value trimmed of flavor + length bytes.
+        //
+        // Credentials
+        //     Flavor: AUTH_UNIX (1)
+        //     Length: 24
+        //     Stamp: 0x00000000
+        //     Machine Name: <EMPTY>
+        //         length: 0
+        //         contents: <EMPTY>
+        //     UID: 0
+        //     GID: 0
+        //     Auxiliary GIDs (1) [0]
+        //         GID: 0
+        let want = hex!("000000000000000000000000000000000000000100000000");
+        let static_want: &'static [u8] = Box::leak(Box::new(want));
+
+        let s = AuthUnixParams::try_from(Bytes::from(static_want)).expect("deserialise failed");
 
         assert_eq!(s.stamp(), 0);
         assert_eq!(s.machine_name_str(), "");

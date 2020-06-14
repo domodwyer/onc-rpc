@@ -1,6 +1,8 @@
 use crate::auth::AuthFlavor;
+use crate::bytes_ext::BytesReaderExt;
 use crate::Error;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use bytes::{Buf, Bytes};
 use std::convert::TryFrom;
 use std::io::{Cursor, Write};
 
@@ -80,6 +82,22 @@ impl<'a> TryFrom<&'a [u8]> for AcceptedReply<&'a [u8], &'a [u8]> {
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
         let mut c = Cursor::new(v);
         AcceptedReply::from_cursor(&mut c)
+    }
+}
+
+impl TryFrom<Bytes> for AcceptedReply<Bytes, Bytes> {
+    type Error = Error;
+
+    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+        // Deserialise the auth flavor using a copy of v, and then advance the
+        // pointer in v.
+        let auth_verifier = AuthFlavor::try_from(v.clone())?;
+        v.advance(auth_verifier.serialised_len() as usize);
+
+        Ok(AcceptedReply {
+            auth_verifier,
+            status: AcceptedStatus::try_from(v)?,
+        })
     }
 }
 
@@ -212,5 +230,26 @@ impl<'a> TryFrom<&'a [u8]> for AcceptedStatus<&'a [u8]> {
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
         let mut c = Cursor::new(v);
         AcceptedStatus::from_cursor(&mut c)
+    }
+}
+
+impl TryFrom<Bytes> for AcceptedStatus<Bytes> {
+    type Error = Error;
+
+    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+        let reply = match v.try_u32()? {
+            REPLY_SUCCESS => AcceptedStatus::Success(v),
+            REPLY_PROG_UNAVAIL => AcceptedStatus::ProgramUnavailable,
+            REPLY_PROG_MISMATCH => AcceptedStatus::ProgramMismatch {
+                low: v.try_u32()?,
+                high: v.try_u32()?,
+            },
+            REPLY_PROC_UNAVAIL => AcceptedStatus::ProcedureUnavailable,
+            REPLY_GARBAGE_ARGS => AcceptedStatus::GarbageArgs,
+            REPLY_SYSTEM_ERR => AcceptedStatus::SystemError,
+            v => return Err(Error::InvalidReplyStatus(v)),
+        };
+
+        Ok(reply)
     }
 }

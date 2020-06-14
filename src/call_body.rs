@@ -1,6 +1,8 @@
 use crate::auth::AuthFlavor;
+use crate::bytes_ext::BytesReaderExt;
 use crate::Error;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use bytes::{Buf, Bytes};
 use std::convert::TryFrom;
 use std::io::{Cursor, Write};
 
@@ -161,5 +163,37 @@ impl<'a> TryFrom<&'a [u8]> for CallBody<&'a [u8], &'a [u8]> {
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
         let mut c = Cursor::new(v);
         CallBody::from_cursor(&mut c)
+    }
+}
+
+impl TryFrom<Bytes> for CallBody<Bytes, Bytes> {
+    type Error = Error;
+
+    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+        let rpc_version = v.try_u32()?;
+        if rpc_version != RPC_VERSION {
+            return Err(Error::InvalidRpcVersion(rpc_version));
+        }
+
+        let program = v.try_u32()?;
+        let program_version = v.try_u32()?;
+        let procedure = v.try_u32()?;
+
+        // Deserialise the auth flavor using a copy of v, and then advance the
+        // pointer in v.
+        let auth_credentials = AuthFlavor::try_from(v.clone())?;
+        v.advance(auth_credentials.serialised_len() as usize);
+
+        let auth_verifier = AuthFlavor::try_from(v.clone())?;
+        v.advance(auth_verifier.serialised_len() as usize);
+
+        Ok(CallBody {
+            program,
+            program_version,
+            procedure,
+            auth_credentials,
+            auth_verifier,
+            payload: v,
+        })
     }
 }

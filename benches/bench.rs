@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use hex_literal::hex;
 use onc_rpc::{
@@ -5,6 +6,7 @@ use onc_rpc::{
     CallBody, MessageType, RpcMessage,
 };
 use smallvec::smallvec;
+use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::io::Cursor;
 
@@ -22,8 +24,6 @@ pub fn auth(c: &mut Criterion) {
             black_box(a)
         })
     });
-
-    // TODO: bench with Bytes
 
     c.bench_function("auth_unix_gids_read", |b| {
         let gids =
@@ -61,6 +61,22 @@ pub fn rpc_message(c: &mut Criterion) {
 
         b.iter(|| {
             let a = RpcMessage::from_bytes(raw_ref).unwrap();
+            black_box(a)
+        })
+    });
+
+    c.bench_function("deserialise_rpc_message_from_bytes", |b| {
+        let raw: [u8; 156] = hex!(
+            "80000098265ec1060000000000000002000186a300000004000000010000000100
+    		0000180000000000000000000000000000000000000001000000000000000000000
+    		0000000000c6163636573732020202020200000000000000003000000160000001f
+    		4300004d1a436f6c452240ea4c70a1b52d7f97418e6601a10e02009cf2d59c00000
+    		000030000003f00000009000000021010011a00b0a23a"
+        );
+        let bytes = Bytes::copy_from_slice(raw.as_ref());
+
+        b.iter(|| {
+            let a = RpcMessage::try_from(bytes.clone()).unwrap();
             black_box(a)
         })
     });

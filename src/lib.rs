@@ -25,4 +25,6 @@ pub use reply::*;
 
 pub mod auth;
 
+mod bytes_ext;
+
 // TODO: code examples

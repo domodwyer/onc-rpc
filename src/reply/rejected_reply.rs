@@ -1,5 +1,7 @@
+use crate::bytes_ext::BytesReaderExt;
 use crate::Error;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use bytes::Bytes;
 use std::convert::TryFrom;
 use std::io::Cursor;
 
@@ -100,6 +102,23 @@ impl TryFrom<&[u8]> for RejectedReply {
     }
 }
 
+impl TryFrom<Bytes> for RejectedReply {
+    type Error = Error;
+
+    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+        let reply = match v.try_u32()? {
+            REJECTED_RPC_MISMATCH => RejectedReply::RpcVersionMismatch {
+                low: v.try_u32()?,
+                high: v.try_u32()?,
+            },
+            REJECTED_AUTH_ERROR => RejectedReply::AuthError(AuthError::try_from(v)?),
+            v => return Err(Error::InvalidRejectedReplyType(v)),
+        };
+
+        Ok(reply)
+    }
+}
+
 /// `AuthError` describes the reason the request authentication credentials were
 /// rejected.
 #[derive(Debug, PartialEq)]
@@ -184,5 +203,25 @@ impl AuthError {
     /// Returns the on-wire length of this reply body once serialised.
     pub fn serialised_len(&self) -> u32 {
         4
+    }
+}
+
+impl TryFrom<Bytes> for AuthError {
+    type Error = Error;
+
+    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+        let reply = match v.try_u32()? {
+            AUTH_ERROR_SUCCESS => AuthError::Success,
+            AUTH_ERROR_BADCRED => AuthError::BadCredentials,
+            AUTH_ERROR_REJECTEDCRED => AuthError::RejectedCredentials,
+            AUTH_ERROR_BADVERF => AuthError::BadVerifier,
+            AUTH_ERROR_REJECTEDVERF => AuthError::RejectedVerifier,
+            AUTH_ERROR_TOOWEAK => AuthError::TooWeak,
+            AUTH_ERROR_INVALIDRESP => AuthError::InvalidResponseVerifier,
+            AUTH_ERROR_FAILED => AuthError::Failed,
+            v => return Err(Error::InvalidAuthError(v)),
+        };
+
+        Ok(reply)
     }
 }

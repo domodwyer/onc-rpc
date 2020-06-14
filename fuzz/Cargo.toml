@@ -11,6 +11,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.3"
+bytes = "0.5.4"
 
 [dependencies.onc-rpc]
 path = ".."
@@ -22,3 +23,7 @@ members = ["."]
 [[bin]]
 name = "parse_serialise"
 path = "fuzz_targets/parse_serialise.rs"
+
+[[bin]]
+name = "bytes"
+path = "fuzz_targets/bytes.rs"

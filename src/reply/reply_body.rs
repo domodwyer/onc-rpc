@@ -1,6 +1,8 @@
 use super::{AcceptedReply, RejectedReply};
+use crate::bytes_ext::BytesReaderExt;
 use crate::Error;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use bytes::Bytes;
 use std::convert::TryFrom;
 use std::io::Cursor;
 
@@ -75,5 +77,17 @@ impl<'a> TryFrom<&'a [u8]> for ReplyBody<&'a [u8], &'a [u8]> {
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
         let mut c = Cursor::new(v);
         ReplyBody::from_cursor(&mut c)
+    }
+}
+
+impl TryFrom<Bytes> for ReplyBody<Bytes, Bytes> {
+    type Error = Error;
+
+    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+        match v.try_u32()? {
+            REPLY_ACCEPTED => Ok(ReplyBody::Accepted(AcceptedReply::try_from(v)?)),
+            REPLY_DENIED => Ok(ReplyBody::Denied(RejectedReply::try_from(v)?)),
+            v => Err(Error::InvalidReplyType(v)),
+        }
     }
 }

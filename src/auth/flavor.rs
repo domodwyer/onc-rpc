@@ -1,7 +1,9 @@
 use crate::auth::AuthUnixParams;
+use crate::bytes_ext::BytesReaderExt;
 use crate::read_slice_bytes;
 use crate::Error;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use bytes::Bytes;
 use std::convert::TryFrom;
 use std::io::{Cursor, Write};
 
@@ -48,7 +50,7 @@ impl<'a> AuthFlavor<&'a [u8]> {
         // Read the auth data length and validate
         let len = r.read_u32::<BigEndian>()?;
         if len > 200 {
-            return Err(Error::InvalidAuthData);
+            return Err(Error::InvalidLength);
         }
 
         let flavor = match flavor {
@@ -163,6 +165,41 @@ impl<'a> TryFrom<&'a [u8]> for AuthFlavor<&'a [u8]> {
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
         let mut c = Cursor::new(v);
         AuthFlavor::from_cursor(&mut c)
+    }
+}
+
+impl TryFrom<Bytes> for AuthFlavor<Bytes> {
+    type Error = Error;
+
+    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+        let flavor = v.try_u32()?;
+        let auth_data = v.try_array(200)?;
+
+        let flavor = match flavor {
+            AUTH_NONE if auth_data.len() == 0 => AuthFlavor::AuthNone(None),
+            AUTH_NONE => AuthFlavor::AuthNone(Some(auth_data)),
+            AUTH_UNIX => {
+                // Prevent malformed messages from including trailing data in
+                // the AUTH_UNIX structure - the deserialised structure should
+                // fully consume the opaque data associated with the AUTH_UNIX
+                // variant.
+                let should_consume = auth_data.len();
+                let params = AuthUnixParams::try_from(auth_data)?;
+                if params.serialised_len() as usize != should_consume {
+                    return Err(Error::InvalidAuthData);
+                }
+                AuthFlavor::AuthUnix(params)
+            }
+            AUTH_SHORT => AuthFlavor::AuthShort(auth_data),
+            // 3 => AuthFlavor::AuthDH,
+            // 6 => AuthFlavor::RpcSecGSS,
+            id => AuthFlavor::Unknown {
+                id,
+                data: auth_data,
+            },
+        };
+
+        Ok(flavor)
     }
 }
 
