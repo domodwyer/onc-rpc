@@ -269,16 +269,15 @@ impl TryFrom<Bytes> for RpcMessage<Bytes, Bytes> {
         // Read the message length from the header, and check v contains exactly
         // one message.
         let want = expected_message_len(v.as_ref())? as usize;
-
-        // Advance past the header bytes
-        v.advance(MSG_HEADER_LEN);
-
-        if v.len() != want {
+        if orginal_buffer_len != want {
             return Err(Error::IncompleteMessage {
-                buffer_len: v.len(),
+                buffer_len: orginal_buffer_len,
                 expected: want,
             });
         }
+
+        // Advance past the header bytes
+        v.advance(MSG_HEADER_LEN);
 
         let xid = v.try_u32()?;
         let message_type = MessageType::try_from(v)?;
@@ -289,12 +288,11 @@ impl TryFrom<Bytes> for RpcMessage<Bytes, Bytes> {
         //
         // This can occur if a message has a valid header length value for data,
         // but data contains more bytes than expected for this message type.
-        let want_len = orginal_buffer_len;
-        let got_len = msg.serialised_len() as usize;
-        if got_len != want_len {
+        let parsed_len = msg.serialised_len() as usize;
+        if parsed_len != orginal_buffer_len {
             return Err(Error::IncompleteMessage {
-                buffer_len: want_len,
-                expected: got_len,
+                buffer_len: orginal_buffer_len,
+                expected: parsed_len,
             });
         }
 
@@ -307,6 +305,30 @@ impl TryFrom<Bytes> for RpcMessage<Bytes, Bytes> {
 /// This function validates the message length value in the header matches the
 /// length of `data`, and ensures this is not a fragmented message.
 fn unwrap_header(data: &[u8]) -> Result<&[u8], Error> {
+    let want = expected_message_len(&data)?;
+
+    // Validate the buffer contains the specified amount of data after the
+    // header.
+    let remaining_data = &data[MSG_HEADER_LEN..];
+
+    if data.len() != want as usize {
+        return Err(Error::IncompleteMessage {
+            buffer_len: data.len(),
+            expected: want as usize,
+        });
+    }
+
+    Ok(remaining_data)
+}
+
+/// Reads the message header from data, and returns the expected wire length of
+/// the RPC message.
+///
+/// `data` must contain at least 4 bytes, and must be the start of an RPC
+/// message for this call to return valid data. If the message does not have the
+/// `last fragment` bit set, [`Error::Fragmented`](crate::Error::Fragmented) is
+/// returned.
+pub fn expected_message_len(data: &[u8]) -> Result<u32, Error> {
     if data.len() < MSG_HEADER_LEN {
         return Err(Error::IncompleteHeader);
     }
@@ -328,51 +350,8 @@ fn unwrap_header(data: &[u8]) -> Result<&[u8], Error> {
         return Err(Error::Fragmented);
     }
 
-    // Validate the buffer contains the specified amount of data after the
-    // header.
-    let remaining_data = &data[MSG_HEADER_LEN..];
-    let want = header & !LAST_FRAGMENT_BIT;
-
-    if remaining_data.len() != want as usize {
-        return Err(Error::IncompleteMessage {
-            buffer_len: remaining_data.len(),
-            expected: want as usize,
-        });
-    }
-
-    Ok(remaining_data)
-}
-
-/// Reads the message header from data, and returns the expected wire length of
-/// the RPC message.
-///
-/// `data` must contain at least 4 bytes, and must be the start of an RPC
-/// message for this call to return valid data. If the message does not have the
-/// `last fragment` bit set, [`Error::Fragmented`](crate::Error::Fragmented) is
-/// returned.
-pub fn expected_message_len(data: &[u8]) -> Result<u32, Error> {
-    if data.len() < 4 {
-        return Err(Error::IncompleteHeader);
-    }
-
-    // Read the 4 byte fragment header.
-    //
-    // RFC1831 defines it as a big endian, 4 byte unsigned number:
-    //
-    //      The number encodes two values -- a boolean which indicates whether the
-    //      fragment is the last fragment of the record (bit value 1 implies the
-    //      fragment is the last fragment) and a 31-bit unsigned binary value which is
-    //      the length in bytes of the fragment's data.  The boolean value is the
-    //      highest-order bit of the header; the length is the 31 low-order bits.
-    //
-    let header = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
-
-    // Ensure the "last fragment" bit is set
-    if header & LAST_FRAGMENT_BIT == 0 {
-        return Err(Error::Fragmented);
-    }
-
-    Ok(header & !LAST_FRAGMENT_BIT)
+    // +4 for the header bytes not counted in the "length" value.
+    Ok((header & !LAST_FRAGMENT_BIT) + 4)
 }
 
 /// Returns a subslice of len bytes from c without copying if it is safe to do
@@ -432,8 +411,8 @@ mod tests {
         assert_eq!(
             unwrap_header(&x),
             Err(Error::IncompleteMessage {
-                buffer_len: 12,
-                expected: 284,
+                buffer_len: 16,
+                expected: 288,
             })
         );
     }
@@ -534,6 +513,8 @@ mod tests {
 			6f702f6d6f756e7400004e4653430000000374637000000000153139322e3136382
 			e312e3138382e3233382e32333500000000000002"
         );
+
+        assert_eq!(expected_message_len(RAW.as_ref()).unwrap(), 288);
 
         let msg = RpcMessage::from_bytes(RAW.as_ref()).expect("failed to parse message");
         assert_eq!(msg.xid(), 643743997);
@@ -670,6 +651,8 @@ mod tests {
         );
 
         let static_raw: &'static [u8] = Box::leak(Box::new(RAW));
+
+        assert_eq!(expected_message_len(static_raw).unwrap(), 288);
 
         let msg = RpcMessage::try_from(Bytes::from(static_raw)).expect("failed to parse message");
         assert_eq!(msg.xid(), 643743997);
