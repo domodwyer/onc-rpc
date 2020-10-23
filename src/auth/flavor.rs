@@ -176,7 +176,7 @@ impl TryFrom<Bytes> for AuthFlavor<Bytes> {
         let auth_data = v.try_array(200)?;
 
         let flavor = match flavor {
-            AUTH_NONE if auth_data.len() == 0 => AuthFlavor::AuthNone(None),
+            AUTH_NONE if auth_data.is_empty() => AuthFlavor::AuthNone(None),
             AUTH_NONE => AuthFlavor::AuthNone(Some(auth_data)),
             AUTH_UNIX => {
                 // Prevent malformed messages from including trailing data in
