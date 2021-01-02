@@ -554,7 +554,7 @@ mod tests {
 			9322e3136382e312e3138382e3233382e32333500000000000002"
         );
 
-        assert_eq!(body.payload(), payload.as_ref());
+        assert_eq!(body.payload().as_ref(), payload.as_ref());
 
         let serialised = msg.serialise().expect("failed to serialise");
         assert_eq!(serialised.as_slice(), RAW.as_ref());

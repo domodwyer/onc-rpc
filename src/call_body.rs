@@ -152,8 +152,8 @@ where
     }
 
     /// Returns a reference to the opaque message payload bytes.
-    pub fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
+    pub fn payload(&self) -> &P {
+        &self.payload
     }
 }
 
