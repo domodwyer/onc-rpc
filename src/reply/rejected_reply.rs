@@ -2,8 +2,10 @@ use crate::bytes_ext::BytesReaderExt;
 use crate::Error;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::Bytes;
-use std::convert::TryFrom;
-use std::io::Cursor;
+use std::{
+    convert::TryFrom,
+    io::{Cursor, Write},
+};
 
 const REJECTED_RPC_MISMATCH: u32 = 0;
 const REJECTED_AUTH_ERROR: u32 = 1;
@@ -56,7 +58,7 @@ impl RejectedReply {
 
     /// Serialises this `RejectedReply` into `buf`, advancing the cursor
     /// position by [`serialised_len`](RejectedReply::serialised_len) bytes.
-    pub fn serialise_into(&self, buf: &mut Cursor<Vec<u8>>) -> Result<(), std::io::Error> {
+    pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         match self {
             RejectedReply::RpcVersionMismatch { low: l, high: h } => {
                 buf.write_u32::<BigEndian>(REJECTED_RPC_MISMATCH)?;
@@ -185,7 +187,7 @@ impl AuthError {
 
     /// Serialises this `AuthError` into `buf`, advancing the cursor position by
     /// [`serialised_len`](AuthError::serialised_len) bytes.
-    pub fn serialise_into(&self, buf: &mut Cursor<Vec<u8>>) -> Result<(), std::io::Error> {
+    pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         let id = match self {
             AuthError::Success => AUTH_ERROR_SUCCESS,
             AuthError::BadCredentials => AUTH_ERROR_BADCRED,

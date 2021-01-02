@@ -87,14 +87,14 @@ where
 
     /// Serialises this `CallBody` into `buf`, advancing the cursor position by
     /// [`serialised_len`](CallBody::serialised_len) bytes.
-    pub fn serialise_into(&self, buf: &mut Cursor<Vec<u8>>) -> Result<(), std::io::Error> {
+    pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         buf.write_u32::<BigEndian>(RPC_VERSION)?;
         buf.write_u32::<BigEndian>(self.program)?;
         buf.write_u32::<BigEndian>(self.program_version)?;
         buf.write_u32::<BigEndian>(self.procedure)?;
 
-        self.auth_credentials.serialise_into(buf)?;
-        self.auth_verifier.serialise_into(buf)?;
+        self.auth_credentials.serialise_into(&mut buf)?;
+        self.auth_verifier.serialise_into(&mut buf)?;
 
         buf.write_all(self.payload.as_ref())
     }

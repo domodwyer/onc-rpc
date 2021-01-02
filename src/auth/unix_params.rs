@@ -108,7 +108,7 @@ where
 
     /// Serialises this `AuthUnixParams` into `buf`, advancing the cursor
     /// position by [`serialised_len`](AuthUnixParams::serialised_len) bytes.
-    pub fn serialise_into(&self, buf: &mut Cursor<Vec<u8>>) -> Result<(), std::io::Error> {
+    pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         buf.write_u32::<BigEndian>(self.stamp)?;
         buf.write_u32::<BigEndian>(self.machine_name.as_ref().len() as u32)?;
         buf.write_all(self.machine_name.as_ref())?;

@@ -3,8 +3,10 @@ use crate::bytes_ext::BytesReaderExt;
 use crate::Error;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::Bytes;
-use std::convert::TryFrom;
-use std::io::Cursor;
+use std::{
+    convert::TryFrom,
+    io::{Cursor, Write},
+};
 
 const REPLY_ACCEPTED: u32 = 0;
 const REPLY_DENIED: u32 = 1;
@@ -40,7 +42,7 @@ where
 {
     /// Serialises this `ReplyBody` into `buf`, advancing the cursor position by
     /// [`serialised_len`](ReplyBody::serialised_len) bytes.
-    pub fn serialise_into(&self, buf: &mut Cursor<Vec<u8>>) -> Result<(), std::io::Error> {
+    pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         match self {
             ReplyBody::Accepted(b) => {
                 buf.write_u32::<BigEndian>(REPLY_ACCEPTED)?;

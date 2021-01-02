@@ -90,7 +90,7 @@ where
     T: AsRef<[u8]>,
 {
     /// Serialises this auth flavor and writes it into buf.
-    pub fn serialise_into(&self, buf: &mut Cursor<Vec<u8>>) -> Result<(), std::io::Error> {
+    pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         buf.write_u32::<BigEndian>(self.id())?;
 
         // Write the length of the following auth data

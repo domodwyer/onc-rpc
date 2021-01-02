@@ -7,8 +7,8 @@ use crate::CallBody;
 use crate::Error;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::{Buf, Bytes};
-use std::convert::TryFrom;
 use std::io::Cursor;
+use std::{convert::TryFrom, io::Write};
 
 const MSG_HEADER_LEN: usize = 4;
 const LAST_FRAGMENT_BIT: u32 = 1 << 31;
@@ -52,7 +52,7 @@ where
 {
     /// Serialises this `MessageType` into `buf`, advancing the cursor position
     /// by [`serialised_len`](MessageType::serialised_len) bytes.
-    pub fn serialise_into(&self, buf: &mut Cursor<Vec<u8>>) -> Result<(), std::io::Error> {
+    pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         match self {
             MessageType::Call(b) => {
                 buf.write_u32::<BigEndian>(MESSAGE_TYPE_CALL)?;
@@ -155,7 +155,7 @@ where
     ///
     /// This method allows the caller to specify the underlying buffer used to
     /// hold the serialised message to enable reuse and pooling.
-    pub fn serialise_into(&self, buf: &mut Cursor<Vec<u8>>) -> Result<(), std::io::Error> {
+    pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         use std::io;
 
         // Build the message header.

@@ -55,9 +55,9 @@ where
 
     /// Serialises this `AcceptedReply` into `buf`, advancing the cursor
     /// position by [`serialised_len`](AcceptedReply::serialised_len) bytes.
-    pub fn serialise_into(&self, buf: &mut Cursor<Vec<u8>>) -> Result<(), std::io::Error> {
-        self.auth_verifier.serialise_into(buf)?;
-        self.status.serialise_into(buf)
+    pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
+        self.auth_verifier.serialise_into(&mut buf)?;
+        self.status.serialise_into(&mut buf)
     }
 
     /// Returns the on-wire length of this type once serialised.
@@ -185,7 +185,7 @@ where
 {
     /// Serialises this `AcceptedStatus` into `buf`, advancing the cursor
     /// position by [`serialised_len`](AcceptedStatus::serialised_len) bytes.
-    pub fn serialise_into(&self, buf: &mut Cursor<Vec<u8>>) -> Result<(), std::io::Error> {
+    pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         match self {
             AcceptedStatus::Success(p) => {
                 buf.write_u32::<BigEndian>(REPLY_SUCCESS)?;
