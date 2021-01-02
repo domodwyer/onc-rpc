@@ -143,9 +143,6 @@ where
     ///
     /// If the machine name cannot be expressed as a valid UTF8 string, this
     /// method panics.
-    ///
-    /// Callers should probably make use of [`machine_name`](machine_name) in
-    /// general.
     pub fn machine_name_str(&self) -> &str {
         std::str::from_utf8(self.machine_name.as_ref()).unwrap()
     }
