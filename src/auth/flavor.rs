@@ -16,7 +16,7 @@ const AUTH_SHORT: u32 = 2;
 ///
 /// The deprecated `AUTH_DH` is not supported, nor is GSS.
 #[non_exhaustive]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum AuthFlavor<T>
 where
     T: AsRef<[u8]>,
@@ -211,6 +211,7 @@ mod tests {
 
     #[test]
     fn test_auth_unix<'a>() {
+        #[rustfmt::skip]
         // Credentials
         //     Flavor: AUTH_UNIX (1)
         //     Length: 84

@@ -15,7 +15,7 @@ use std::io::{Cursor, Write};
 /// [RFC1831](https://tools.ietf.org/html/rfc1831).
 ///
 /// These values are trivial to forge and provide no actual security.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct AuthUnixParams<T>
 where
     T: AsRef<[u8]>,
@@ -232,6 +232,7 @@ mod tests {
             .serialise_into(&mut buf)
             .expect("failed to serialise");
 
+        #[rustfmt::skip]
         // Known good wire value trimmed of flavor + length bytes.
         //
         // Credentials
@@ -315,6 +316,7 @@ mod tests {
 
     #[test]
     fn test_deserialise_bytes() {
+        #[rustfmt::skip]
         // Known good wire value trimmed of flavor + length bytes.
         //
         // Credentials
