@@ -17,10 +17,7 @@ const AUTH_SHORT: u32 = 2;
 /// The deprecated `AUTH_DH` is not supported, nor is GSS.
 #[non_exhaustive]
 #[derive(Debug, PartialEq, Clone)]
-pub enum AuthFlavor<T>
-where
-    T: AsRef<[u8]>,
-{
+pub enum AuthFlavor<T> {
     /// `AUTH_NONE` with the opaque data the spec allows to be included
     /// (typically `None`).
     AuthNone(Option<T>),

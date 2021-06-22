@@ -16,11 +16,7 @@ const REPLY_SYSTEM_ERR: u32 = 5;
 /// A type sent in response to a request that contains credentials accepted by
 /// the server.
 #[derive(Debug, PartialEq)]
-pub struct AcceptedReply<T, P>
-where
-    T: AsRef<[u8]>,
-    P: AsRef<[u8]>,
-{
+pub struct AcceptedReply<T, P> {
     auth_verifier: AuthFlavor<T>,
     status: AcceptedStatus<P>,
 }
@@ -39,11 +35,7 @@ impl<'a> AcceptedReply<&'a [u8], &'a [u8]> {
     }
 }
 
-impl<T, P> AcceptedReply<T, P>
-where
-    T: AsRef<[u8]>,
-    P: AsRef<[u8]>,
-{
+impl<T, P> AcceptedReply<T, P> {
     /// Constructs a new `AcceptedReply` with the specified
     /// [`AcceptedStatus`](AcceptedStatus).
     pub fn new(auth_verifier: AuthFlavor<T>, status: AcceptedStatus<P>) -> Self {
@@ -51,18 +43,6 @@ where
             auth_verifier,
             status,
         }
-    }
-
-    /// Serialises this `AcceptedReply` into `buf`, advancing the cursor
-    /// position by [`serialised_len`](AcceptedReply::serialised_len) bytes.
-    pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
-        self.auth_verifier.serialise_into(&mut buf)?;
-        self.status.serialise_into(&mut buf)
-    }
-
-    /// Returns the on-wire length of this type once serialised.
-    pub fn serialised_len(&self) -> u32 {
-        self.auth_verifier.serialised_len() + self.status.serialised_len()
     }
 
     /// Returns the auth verifier for use by the client to validate the server.
@@ -73,6 +53,24 @@ where
     /// Returns the status code of the response.
     pub fn status(&self) -> &AcceptedStatus<P> {
         &self.status
+    }
+}
+
+impl<T, P> AcceptedReply<T, P>
+where
+    T: AsRef<[u8]>,
+    P: AsRef<[u8]>,
+{
+    /// Serialises this `AcceptedReply` into `buf`, advancing the cursor
+    /// position by [`serialised_len`](AcceptedReply::serialised_len) bytes.
+    pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
+        self.auth_verifier.serialise_into(&mut buf)?;
+        self.status.serialise_into(&mut buf)
+    }
+
+    /// Returns the on-wire length of this type once serialised.
+    pub fn serialised_len(&self) -> u32 {
+        self.auth_verifier.serialised_len() + self.status.serialised_len()
     }
 }
 
@@ -103,10 +101,7 @@ impl TryFrom<Bytes> for AcceptedReply<Bytes, Bytes> {
 
 /// The response status code for a request that contains valid credentials.
 #[derive(Debug, PartialEq)]
-pub enum AcceptedStatus<P>
-where
-    P: AsRef<[u8]>,
-{
+pub enum AcceptedStatus<P> {
     /// The RPC was successful, and the response payload is contained in the
     /// variant.
     Success(P),

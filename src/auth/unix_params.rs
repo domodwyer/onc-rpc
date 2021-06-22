@@ -16,10 +16,7 @@ use std::io::{Cursor, Write};
 ///
 /// These values are trivial to forge and provide no actual security.
 #[derive(Debug, PartialEq, Clone)]
-pub struct AuthUnixParams<T>
-where
-    T: AsRef<[u8]>,
-{
+pub struct AuthUnixParams<T> {
     stamp: u32,
     machine_name: T,
     uid: u32,
@@ -133,8 +130,8 @@ where
     }
 
     /// The hostname of the caller's machine.
-    pub fn machine_name(&self) -> &[u8] {
-        self.machine_name.as_ref()
+    pub fn machine_name(&self) -> &T {
+        &self.machine_name
     }
 
     /// The hostname of the caller's machine as a reference to a UTF8 string.
