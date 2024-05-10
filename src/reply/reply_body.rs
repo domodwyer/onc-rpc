@@ -44,11 +44,11 @@ where
     /// [`ReplyBody::serialised_len()`] bytes.
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         match self {
-            ReplyBody::Accepted(b) => {
+            Self::Accepted(b) => {
                 buf.write_u32::<BigEndian>(REPLY_ACCEPTED)?;
                 b.serialise_into(buf)
             }
-            ReplyBody::Denied(b) => {
+            Self::Denied(b) => {
                 buf.write_u32::<BigEndian>(REPLY_DENIED)?;
                 b.serialise_into(buf)
             }
@@ -65,8 +65,8 @@ where
 
         // Variant length
         len += match self {
-            ReplyBody::Accepted(b) => b.serialised_len(),
-            ReplyBody::Denied(b) => b.serialised_len(),
+            Self::Accepted(b) => b.serialised_len(),
+            Self::Denied(b) => b.serialised_len(),
         };
 
         len
@@ -87,8 +87,8 @@ impl TryFrom<Bytes> for ReplyBody<Bytes, Bytes> {
 
     fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
         match v.try_u32()? {
-            REPLY_ACCEPTED => Ok(ReplyBody::Accepted(AcceptedReply::try_from(v)?)),
-            REPLY_DENIED => Ok(ReplyBody::Denied(RejectedReply::try_from(v)?)),
+            REPLY_ACCEPTED => Ok(Self::Accepted(AcceptedReply::try_from(v)?)),
+            REPLY_DENIED => Ok(Self::Denied(RejectedReply::try_from(v)?)),
             v => Err(Error::InvalidReplyType(v)),
         }
     }

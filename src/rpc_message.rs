@@ -54,11 +54,11 @@ where
     /// by [`MessageType::serialised_len()`] bytes.
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         match self {
-            MessageType::Call(b) => {
+            Self::Call(b) => {
                 buf.write_u32::<BigEndian>(MESSAGE_TYPE_CALL)?;
                 b.serialise_into(buf)?;
             }
-            MessageType::Reply(b) => {
+            Self::Reply(b) => {
                 buf.write_u32::<BigEndian>(MESSAGE_TYPE_REPLY)?;
                 b.serialise_into(buf)?;
             }
@@ -71,8 +71,8 @@ where
     /// the message header.
     pub fn serialised_len(&self) -> u32 {
         match self {
-            MessageType::Call(c) => c.serialised_len() + 4,
-            MessageType::Reply(r) => r.serialised_len() + 4,
+            Self::Call(c) => c.serialised_len() + 4,
+            Self::Reply(r) => r.serialised_len() + 4,
         }
     }
 }
@@ -82,8 +82,8 @@ impl TryFrom<Bytes> for MessageType<Bytes, Bytes> {
 
     fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
         match v.try_u32()? {
-            MESSAGE_TYPE_CALL => Ok(MessageType::Call(CallBody::try_from(v)?)),
-            MESSAGE_TYPE_REPLY => Ok(MessageType::Reply(ReplyBody::try_from(v)?)),
+            MESSAGE_TYPE_CALL => Ok(Self::Call(CallBody::try_from(v)?)),
+            MESSAGE_TYPE_REPLY => Ok(Self::Reply(ReplyBody::try_from(v)?)),
             v => Err(Error::InvalidMessageType(v)),
         }
     }
@@ -107,7 +107,7 @@ impl<'a> RpcMessage<&'a [u8], &'a [u8]> {
     /// Buf must contain exactly 1 message - if `buf` contains an incomplete
     /// message, or `buf` contains trailing bytes after the message
     /// [`Error::IncompleteMessage`] is returned.
-    pub fn from_bytes(buf: &'a [u8]) -> Result<RpcMessage<&'a [u8], &'a [u8]>, Error> {
+    pub fn from_bytes(buf: &'a [u8]) -> Result<Self, Error> {
         // Unwrap the message header, validating the length of data.
         let data = unwrap_header(buf)?;
 
@@ -145,7 +145,7 @@ where
     /// Construct a new `RpcMessage` with the specified transaction ID and
     /// message body.
     pub fn new(xid: u32, message_type: MessageType<T, P>) -> Self {
-        RpcMessage { xid, message_type }
+        Self { xid, message_type }
     }
 
     /// Write this `RpcMessage` into `buf`, advancing the cursor to the end of
@@ -238,7 +238,7 @@ where
     /// not a RPC call request.
     pub fn call_body(&self) -> Option<&CallBody<T, P>> {
         match self.message_type {
-            MessageType::Call(ref b) => Some(&b),
+            MessageType::Call(ref b) => Some(b),
             _ => None,
         }
     }
@@ -247,7 +247,7 @@ where
     /// not a RPC response.
     pub fn reply_body(&self) -> Option<&ReplyBody<T, P>> {
         match self.message_type {
-            MessageType::Reply(ref b) => Some(&b),
+            MessageType::Reply(ref b) => Some(b),
             _ => None,
         }
     }
@@ -283,7 +283,7 @@ impl TryFrom<Bytes> for RpcMessage<Bytes, Bytes> {
         let xid = v.try_u32()?;
         let message_type = MessageType::try_from(v)?;
 
-        let msg = RpcMessage { xid, message_type };
+        let msg = Self { xid, message_type };
 
         // Detect messages that have more data than what was deserialised.
         //
@@ -306,7 +306,7 @@ impl TryFrom<Bytes> for RpcMessage<Bytes, Bytes> {
 /// This function validates the message length value in the header matches the
 /// length of `data`, and ensures this is not a fragmented message.
 fn unwrap_header(data: &[u8]) -> Result<&[u8], Error> {
-    let want = expected_message_len(&data)?;
+    let want = expected_message_len(data)?;
 
     // Validate the buffer contains the specified amount of data after the
     // header.

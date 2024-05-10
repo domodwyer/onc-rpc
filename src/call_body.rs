@@ -75,7 +75,7 @@ where
         auth_verifier: AuthFlavor<T>,
         payload: P,
     ) -> Self {
-        CallBody {
+        Self {
             program,
             program_version,
             procedure,
@@ -187,7 +187,7 @@ impl TryFrom<Bytes> for CallBody<Bytes, Bytes> {
         let auth_verifier = AuthFlavor::try_from(v.clone())?;
         v.advance(auth_verifier.serialised_len() as usize);
 
-        Ok(CallBody {
+        Ok(Self {
             program,
             program_version,
             procedure,

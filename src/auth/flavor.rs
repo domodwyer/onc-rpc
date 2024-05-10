@@ -98,32 +98,32 @@ where
 
         // Write the actual auth data
         match self {
-            AuthFlavor::AuthNone(Some(d)) => buf.write_all(d.as_ref()),
-            AuthFlavor::AuthNone(None) => Ok(()),
-            AuthFlavor::AuthUnix(p) => p.serialise_into(buf),
-            AuthFlavor::AuthShort(d) => buf.write_all(d.as_ref()),
-            AuthFlavor::Unknown { id: _id, data } => buf.write_all(data.as_ref()),
+            Self::AuthNone(Some(d)) => buf.write_all(d.as_ref()),
+            Self::AuthNone(None) => Ok(()),
+            Self::AuthUnix(p) => p.serialise_into(buf),
+            Self::AuthShort(d) => buf.write_all(d.as_ref()),
+            Self::Unknown { id: _id, data } => buf.write_all(data.as_ref()),
         }
     }
 
     /// Returns the ID value used to identify the variant in the wire protocol.
     pub fn id(&self) -> u32 {
         match self {
-            AuthFlavor::AuthNone(_) => AUTH_NONE,
-            AuthFlavor::AuthUnix(_) => AUTH_UNIX,
-            AuthFlavor::AuthShort(_) => AUTH_SHORT,
-            AuthFlavor::Unknown { id, data: _ } => *id,
+            Self::AuthNone(_) => AUTH_NONE,
+            Self::AuthUnix(_) => AUTH_UNIX,
+            Self::AuthShort(_) => AUTH_SHORT,
+            Self::Unknown { id, data: _ } => *id,
         }
     }
 
     /// Returns the byte length of the associated auth data, if any.
     pub fn associated_data_len(&self) -> u32 {
         match self {
-            AuthFlavor::AuthNone(Some(d)) => d.as_ref().len() as u32,
-            AuthFlavor::AuthNone(None) => 0,
-            AuthFlavor::AuthUnix(p) => p.serialised_len(),
-            AuthFlavor::AuthShort(d) => d.as_ref().len() as u32,
-            AuthFlavor::Unknown { id: _id, data } => data.as_ref().len() as u32,
+            Self::AuthNone(Some(d)) => d.as_ref().len() as u32,
+            Self::AuthNone(None) => 0,
+            Self::AuthUnix(p) => p.serialised_len(),
+            Self::AuthShort(d) => d.as_ref().len() as u32,
+            Self::Unknown { id: _id, data } => data.as_ref().len() as u32,
         }
     }
 
@@ -140,16 +140,16 @@ where
 
         // Add the flavor size
         l += match self {
-            AuthFlavor::AuthNone(ref data) => {
+            Self::AuthNone(ref data) => {
                 // Data length + length prefix u32
                 data.as_ref().map_or(0, |d| d.as_ref().len())
             }
-            AuthFlavor::AuthUnix(ref p) => p.serialised_len() as usize,
-            AuthFlavor::AuthShort(data) => {
+            Self::AuthUnix(ref p) => p.serialised_len() as usize,
+            Self::AuthShort(data) => {
                 // Data length
                 data.as_ref().len()
             }
-            AuthFlavor::Unknown { id: _id, data } => {
+            Self::Unknown { id: _id, data } => {
                 // Data length + length prefix u32
                 data.as_ref().len()
             }
@@ -176,8 +176,8 @@ impl TryFrom<Bytes> for AuthFlavor<Bytes> {
         let auth_data = v.try_array(200)?;
 
         let flavor = match flavor {
-            AUTH_NONE if auth_data.is_empty() => AuthFlavor::AuthNone(None),
-            AUTH_NONE => AuthFlavor::AuthNone(Some(auth_data)),
+            AUTH_NONE if auth_data.is_empty() => Self::AuthNone(None),
+            AUTH_NONE => Self::AuthNone(Some(auth_data)),
             AUTH_UNIX => {
                 // Prevent malformed messages from including trailing data in
                 // the AUTH_UNIX structure - the deserialised structure should
@@ -188,12 +188,12 @@ impl TryFrom<Bytes> for AuthFlavor<Bytes> {
                 if params.serialised_len() as usize != should_consume {
                     return Err(Error::InvalidAuthData);
                 }
-                AuthFlavor::AuthUnix(params)
+                Self::AuthUnix(params)
             }
-            AUTH_SHORT => AuthFlavor::AuthShort(auth_data),
+            AUTH_SHORT => Self::AuthShort(auth_data),
             // 3 => AuthFlavor::AuthDH,
             // 6 => AuthFlavor::RpcSecGSS,
-            id => AuthFlavor::Unknown {
+            id => Self::Unknown {
                 id,
                 data: auth_data,
             },

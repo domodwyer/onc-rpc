@@ -1,14 +1,21 @@
 //! An implementation of RFC 5531, including the defined types, authentication
 //! flavors and fast (de)serialisation.
 
+#![deny(rustdoc::broken_intra_doc_links, rust_2018_idioms)]
 #![warn(
-    missing_docs,
-    missing_debug_implementations,
-    rust_2018_idioms,
+    clippy::clone_on_ref_ptr,
+    clippy::dbg_macro,
+    clippy::explicit_iter_loop,
+    clippy::future_not_send,
+    clippy::todo,
+    clippy::unimplemented,
+    clippy::use_self,
     clippy::doc_markdown,
     clippy::print_stdout,
-    clippy::todo,
-    clippy::unimplemented
+    missing_debug_implementations,
+    unused_crate_dependencies,
+    unreachable_pub,
+    missing_docs
 )]
 
 mod errors;
@@ -28,3 +35,6 @@ pub mod auth;
 mod bytes_ext;
 
 // TODO: code examples
+// Unused crate lint workaround for dev dependency.
+#[cfg(test)]
+use criterion as _;

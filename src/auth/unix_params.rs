@@ -97,7 +97,7 @@ where
         gid: u32,
         gids: Option<SmallVec<[u32; 16]>>,
     ) -> Self {
-        AuthUnixParams {
+        Self {
             stamp,
             machine_name,
             uid,
@@ -202,7 +202,7 @@ impl TryFrom<Bytes> for AuthUnixParams<Bytes> {
             _ => return Err(Error::InvalidAuthData),
         };
 
-        Ok(AuthUnixParams {
+        Ok(Self {
             stamp,
             machine_name: name,
             uid,

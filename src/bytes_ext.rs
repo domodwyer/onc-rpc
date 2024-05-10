@@ -3,7 +3,7 @@ use bytes::{Buf, Bytes};
 
 /// An extension to the `bytes::Bytes` type, providing a non-panic alternative
 /// to the `get_u32` method, and an array helper.
-pub trait BytesReaderExt {
+pub(crate) trait BytesReaderExt {
     type Sliced;
 
     fn try_u32(&mut self) -> Result<u32, Error>;

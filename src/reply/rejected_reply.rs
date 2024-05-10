@@ -45,11 +45,11 @@ impl RejectedReply {
     /// `RejectedReply` structure.
     pub(crate) fn from_cursor(r: &mut Cursor<&[u8]>) -> Result<Self, Error> {
         let reply = match r.read_u32::<BigEndian>()? {
-            REJECTED_RPC_MISMATCH => RejectedReply::RpcVersionMismatch {
+            REJECTED_RPC_MISMATCH => Self::RpcVersionMismatch {
                 low: r.read_u32::<BigEndian>()?,
                 high: r.read_u32::<BigEndian>()?,
             },
-            REJECTED_AUTH_ERROR => RejectedReply::AuthError(AuthError::from_cursor(r)?),
+            REJECTED_AUTH_ERROR => Self::AuthError(AuthError::from_cursor(r)?),
             v => return Err(Error::InvalidRejectedReplyType(v)),
         };
 
@@ -60,12 +60,12 @@ impl RejectedReply {
     /// position by [`RejectedReply::serialised_len()`] bytes.
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         match self {
-            RejectedReply::RpcVersionMismatch { low: l, high: h } => {
+            Self::RpcVersionMismatch { low: l, high: h } => {
                 buf.write_u32::<BigEndian>(REJECTED_RPC_MISMATCH)?;
                 buf.write_u32::<BigEndian>(*l)?;
                 buf.write_u32::<BigEndian>(*h)
             }
-            RejectedReply::AuthError(err) => {
+            Self::AuthError(err) => {
                 buf.write_u32::<BigEndian>(REJECTED_AUTH_ERROR)?;
                 err.serialise_into(buf)
             }
@@ -81,14 +81,14 @@ impl RejectedReply {
 
         // Variant length
         len += match self {
-            RejectedReply::RpcVersionMismatch {
+            Self::RpcVersionMismatch {
                 low: _low,
                 high: _high,
             } => {
                 // low, high
                 4 + 4
             }
-            RejectedReply::AuthError(e) => e.serialised_len(),
+            Self::AuthError(e) => e.serialised_len(),
         };
 
         len
@@ -100,7 +100,7 @@ impl TryFrom<&[u8]> for RejectedReply {
 
     fn try_from(v: &[u8]) -> Result<Self, Self::Error> {
         let mut c = Cursor::new(v);
-        RejectedReply::from_cursor(&mut c)
+        Self::from_cursor(&mut c)
     }
 }
 
@@ -109,11 +109,11 @@ impl TryFrom<Bytes> for RejectedReply {
 
     fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
         let reply = match v.try_u32()? {
-            REJECTED_RPC_MISMATCH => RejectedReply::RpcVersionMismatch {
+            REJECTED_RPC_MISMATCH => Self::RpcVersionMismatch {
                 low: v.try_u32()?,
                 high: v.try_u32()?,
             },
-            REJECTED_AUTH_ERROR => RejectedReply::AuthError(AuthError::try_from(v)?),
+            REJECTED_AUTH_ERROR => Self::AuthError(AuthError::try_from(v)?),
             v => return Err(Error::InvalidRejectedReplyType(v)),
         };
 
@@ -172,14 +172,14 @@ pub enum AuthError {
 impl AuthError {
     pub(crate) fn from_cursor(r: &mut Cursor<&[u8]>) -> Result<Self, Error> {
         let reply = match r.read_u32::<BigEndian>()? {
-            AUTH_ERROR_SUCCESS => AuthError::Success,
-            AUTH_ERROR_BADCRED => AuthError::BadCredentials,
-            AUTH_ERROR_REJECTEDCRED => AuthError::RejectedCredentials,
-            AUTH_ERROR_BADVERF => AuthError::BadVerifier,
-            AUTH_ERROR_REJECTEDVERF => AuthError::RejectedVerifier,
-            AUTH_ERROR_TOOWEAK => AuthError::TooWeak,
-            AUTH_ERROR_INVALIDRESP => AuthError::InvalidResponseVerifier,
-            AUTH_ERROR_FAILED => AuthError::Failed,
+            AUTH_ERROR_SUCCESS => Self::Success,
+            AUTH_ERROR_BADCRED => Self::BadCredentials,
+            AUTH_ERROR_REJECTEDCRED => Self::RejectedCredentials,
+            AUTH_ERROR_BADVERF => Self::BadVerifier,
+            AUTH_ERROR_REJECTEDVERF => Self::RejectedVerifier,
+            AUTH_ERROR_TOOWEAK => Self::TooWeak,
+            AUTH_ERROR_INVALIDRESP => Self::InvalidResponseVerifier,
+            AUTH_ERROR_FAILED => Self::Failed,
             v => return Err(Error::InvalidAuthError(v)),
         };
 
@@ -190,14 +190,14 @@ impl AuthError {
     /// [`AuthError::serialised_len()`] bytes.
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         let id = match self {
-            AuthError::Success => AUTH_ERROR_SUCCESS,
-            AuthError::BadCredentials => AUTH_ERROR_BADCRED,
-            AuthError::RejectedCredentials => AUTH_ERROR_REJECTEDCRED,
-            AuthError::BadVerifier => AUTH_ERROR_BADVERF,
-            AuthError::RejectedVerifier => AUTH_ERROR_REJECTEDVERF,
-            AuthError::TooWeak => AUTH_ERROR_TOOWEAK,
-            AuthError::InvalidResponseVerifier => AUTH_ERROR_INVALIDRESP,
-            AuthError::Failed => AUTH_ERROR_FAILED,
+            Self::Success => AUTH_ERROR_SUCCESS,
+            Self::BadCredentials => AUTH_ERROR_BADCRED,
+            Self::RejectedCredentials => AUTH_ERROR_REJECTEDCRED,
+            Self::BadVerifier => AUTH_ERROR_BADVERF,
+            Self::RejectedVerifier => AUTH_ERROR_REJECTEDVERF,
+            Self::TooWeak => AUTH_ERROR_TOOWEAK,
+            Self::InvalidResponseVerifier => AUTH_ERROR_INVALIDRESP,
+            Self::Failed => AUTH_ERROR_FAILED,
         };
 
         buf.write_u32::<BigEndian>(id)
@@ -214,14 +214,14 @@ impl TryFrom<Bytes> for AuthError {
 
     fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
         let reply = match v.try_u32()? {
-            AUTH_ERROR_SUCCESS => AuthError::Success,
-            AUTH_ERROR_BADCRED => AuthError::BadCredentials,
-            AUTH_ERROR_REJECTEDCRED => AuthError::RejectedCredentials,
-            AUTH_ERROR_BADVERF => AuthError::BadVerifier,
-            AUTH_ERROR_REJECTEDVERF => AuthError::RejectedVerifier,
-            AUTH_ERROR_TOOWEAK => AuthError::TooWeak,
-            AUTH_ERROR_INVALIDRESP => AuthError::InvalidResponseVerifier,
-            AUTH_ERROR_FAILED => AuthError::Failed,
+            AUTH_ERROR_SUCCESS => Self::Success,
+            AUTH_ERROR_BADCRED => Self::BadCredentials,
+            AUTH_ERROR_REJECTEDCRED => Self::RejectedCredentials,
+            AUTH_ERROR_BADVERF => Self::BadVerifier,
+            AUTH_ERROR_REJECTEDVERF => Self::RejectedVerifier,
+            AUTH_ERROR_TOOWEAK => Self::TooWeak,
+            AUTH_ERROR_INVALIDRESP => Self::InvalidResponseVerifier,
+            AUTH_ERROR_FAILED => Self::Failed,
             v => return Err(Error::InvalidAuthError(v)),
         };
 

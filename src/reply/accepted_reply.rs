@@ -46,7 +46,7 @@ where
 {
     /// Constructs a new `AcceptedReply` with the specified [`AcceptedStatus`].
     pub fn new(auth_verifier: AuthFlavor<T>, status: AcceptedStatus<P>) -> Self {
-        AcceptedReply {
+        Self {
             auth_verifier,
             status,
         }
@@ -93,7 +93,7 @@ impl TryFrom<Bytes> for AcceptedReply<Bytes, Bytes> {
         let auth_verifier = AuthFlavor::try_from(v.clone())?;
         v.advance(auth_verifier.serialised_len() as usize);
 
-        Ok(AcceptedReply {
+        Ok(Self {
             auth_verifier,
             status: AcceptedStatus::try_from(v)?,
         })
@@ -186,19 +186,19 @@ where
     /// position by [`AcceptedStatus::serialised_len()`] bytes.
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         match self {
-            AcceptedStatus::Success(p) => {
+            Self::Success(p) => {
                 buf.write_u32::<BigEndian>(REPLY_SUCCESS)?;
                 buf.write_all(p.as_ref())
             }
-            AcceptedStatus::ProgramUnavailable => buf.write_u32::<BigEndian>(REPLY_PROG_UNAVAIL),
-            AcceptedStatus::ProgramMismatch { low: l, high: h } => {
+            Self::ProgramUnavailable => buf.write_u32::<BigEndian>(REPLY_PROG_UNAVAIL),
+            Self::ProgramMismatch { low: l, high: h } => {
                 buf.write_u32::<BigEndian>(REPLY_PROG_MISMATCH)?;
                 buf.write_u32::<BigEndian>(*l)?;
                 buf.write_u32::<BigEndian>(*h)
             }
-            AcceptedStatus::ProcedureUnavailable => buf.write_u32::<BigEndian>(REPLY_PROC_UNAVAIL),
-            AcceptedStatus::GarbageArgs => buf.write_u32::<BigEndian>(REPLY_GARBAGE_ARGS),
-            AcceptedStatus::SystemError => buf.write_u32::<BigEndian>(REPLY_SYSTEM_ERR),
+            Self::ProcedureUnavailable => buf.write_u32::<BigEndian>(REPLY_PROC_UNAVAIL),
+            Self::GarbageArgs => buf.write_u32::<BigEndian>(REPLY_GARBAGE_ARGS),
+            Self::SystemError => buf.write_u32::<BigEndian>(REPLY_SYSTEM_ERR),
         }
     }
 
@@ -211,12 +211,12 @@ where
 
         // Variant length
         len += match self {
-            AcceptedStatus::Success(p) => p.as_ref().len() as u32,
-            AcceptedStatus::ProgramUnavailable => 0,
-            AcceptedStatus::ProgramMismatch { low: _l, high: _h } => 8,
-            AcceptedStatus::ProcedureUnavailable => 0,
-            AcceptedStatus::GarbageArgs => 0,
-            AcceptedStatus::SystemError => 0,
+            Self::Success(p) => p.as_ref().len() as u32,
+            Self::ProgramUnavailable => 0,
+            Self::ProgramMismatch { low: _l, high: _h } => 8,
+            Self::ProcedureUnavailable => 0,
+            Self::GarbageArgs => 0,
+            Self::SystemError => 0,
         };
 
         len
@@ -237,15 +237,15 @@ impl TryFrom<Bytes> for AcceptedStatus<Bytes> {
 
     fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
         let reply = match v.try_u32()? {
-            REPLY_SUCCESS => AcceptedStatus::Success(v),
-            REPLY_PROG_UNAVAIL => AcceptedStatus::ProgramUnavailable,
-            REPLY_PROG_MISMATCH => AcceptedStatus::ProgramMismatch {
+            REPLY_SUCCESS => Self::Success(v),
+            REPLY_PROG_UNAVAIL => Self::ProgramUnavailable,
+            REPLY_PROG_MISMATCH => Self::ProgramMismatch {
                 low: v.try_u32()?,
                 high: v.try_u32()?,
             },
-            REPLY_PROC_UNAVAIL => AcceptedStatus::ProcedureUnavailable,
-            REPLY_GARBAGE_ARGS => AcceptedStatus::GarbageArgs,
-            REPLY_SYSTEM_ERR => AcceptedStatus::SystemError,
+            REPLY_PROC_UNAVAIL => Self::ProcedureUnavailable,
+            REPLY_GARBAGE_ARGS => Self::GarbageArgs,
+            REPLY_SYSTEM_ERR => Self::SystemError,
             v => return Err(Error::InvalidReplyStatus(v)),
         };
 

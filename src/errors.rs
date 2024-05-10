@@ -98,6 +98,6 @@ pub enum Error {
 
 impl From<std::io::Error> for Error {
     fn from(v: std::io::Error) -> Self {
-        Error::IOError(v.kind(), v.to_string())
+        Self::IOError(v.kind(), v.to_string())
     }
 }
