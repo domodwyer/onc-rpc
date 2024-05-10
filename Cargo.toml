@@ -12,7 +12,7 @@ readme = "README.md"
 documentation = "https://docs.rs/onc-rpc"
 repository = "https://github.com/domodwyer/onc-rpc"
 keywords = ["onc", "rpc", "sun", "protocol", "xdr"]
-categories = ["network-programming", "encoding", "parser-implementations", "api-bindings"]
+categories = ["network-programming", "encoding", "api-bindings"]
 
 [dependencies]
 thiserror = "1.0.23"
