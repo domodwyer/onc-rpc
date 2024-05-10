@@ -41,7 +41,7 @@ where
     P: AsRef<[u8]>,
 {
     /// Serialises this `ReplyBody` into `buf`, advancing the cursor position by
-    /// [`serialised_len`](ReplyBody::serialised_len) bytes.
+    /// [`ReplyBody::serialised_len()`] bytes.
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         match self {
             ReplyBody::Accepted(b) => {

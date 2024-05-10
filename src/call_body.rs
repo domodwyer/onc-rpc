@@ -86,7 +86,7 @@ where
     }
 
     /// Serialises this `CallBody` into `buf`, advancing the cursor position by
-    /// [`serialised_len`](CallBody::serialised_len) bytes.
+    /// [`CallBody::serialised_len()`] bytes.
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         buf.write_u32::<BigEndian>(RPC_VERSION)?;
         buf.write_u32::<BigEndian>(self.program)?;

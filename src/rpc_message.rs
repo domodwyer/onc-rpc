@@ -51,7 +51,7 @@ where
     P: AsRef<[u8]>,
 {
     /// Serialises this `MessageType` into `buf`, advancing the cursor position
-    /// by [`serialised_len`](MessageType::serialised_len) bytes.
+    /// by [`MessageType::serialised_len()`] bytes.
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         match self {
             MessageType::Call(b) => {
@@ -89,7 +89,7 @@ impl TryFrom<Bytes> for MessageType<Bytes, Bytes> {
     }
 }
 
-/// An Open Network Computing RPC message, generic over a source of bytes (`T)
+/// An Open Network Computing RPC message, generic over a source of bytes (`T`)
 /// and a payload buffer (`P`).
 #[derive(Debug, PartialEq)]
 pub struct RpcMessage<T, P>
@@ -102,11 +102,11 @@ where
 }
 
 impl<'a> RpcMessage<&'a [u8], &'a [u8]> {
-    /// Deserialises a new `RpcMessage` from `buf`.
+    /// Deserialises a new [`RpcMessage`] from `buf`.
     ///
     /// Buf must contain exactly 1 message - if `buf` contains an incomplete
     /// message, or `buf` contains trailing bytes after the message
-    /// [`IncompleteMessage`](crate::Error::IncompleteMessage) is returned.
+    /// [`Error::IncompleteMessage`] is returned.
     pub fn from_bytes(buf: &'a [u8]) -> Result<RpcMessage<&'a [u8], &'a [u8]>, Error> {
         // Unwrap the message header, validating the length of data.
         let data = unwrap_header(buf)?;
@@ -150,8 +150,7 @@ where
 
     /// Write this `RpcMessage` into `buf`, advancing the cursor to the end of
     /// the serialised message. `buf` must have capacity for at least
-    /// [`serialised_len`](crate::RpcMessage::serialised_len) bytes from the
-    /// current cursor position.
+    /// [`RpcMessage::serialised_len()`] bytes from the current cursor position.
     ///
     /// This method allows the caller to specify the underlying buffer used to
     /// hold the serialised message to enable reuse and pooling.
@@ -185,7 +184,7 @@ where
         self.message_type.serialise_into(buf)
     }
 
-    /// Serialise this `RpcMessage` into a new [`Vec`](std::vec::Vec).
+    /// Serialise this `RpcMessage` into a new [`Vec`].
     ///
     /// The returned vec will be sized exactly to contain this message. Calling
     /// this method is the equivalent of:
@@ -210,6 +209,8 @@ where
     /// let mut c = Cursor::new(buf);
     /// msg.serialise_into(&mut c);
     /// ```
+    ///
+    /// [`Vec`]: std::vec::Vec
     pub fn serialise(&self) -> Result<Vec<u8>, std::io::Error> {
         let mut buf = Cursor::new(Vec::with_capacity(self.serialised_len() as usize));
         self.serialise_into(&mut buf)?;
@@ -228,13 +229,13 @@ where
         self.xid
     }
 
-    /// The [`MessageType`](MessageType) contained in this request.
+    /// The [`MessageType`] contained in this request.
     pub fn message(&self) -> &MessageType<T, P> {
         &self.message_type
     }
 
-    /// Returns the [`CallBody`](CallBody) in this request, or `None` if this
-    /// message is not a RPC call request.
+    /// Returns the [`CallBody`] in this request, or `None` if this message is
+    /// not a RPC call request.
     pub fn call_body(&self) -> Option<&CallBody<T, P>> {
         match self.message_type {
             MessageType::Call(ref b) => Some(&b),
@@ -242,8 +243,8 @@ where
         }
     }
 
-    /// Returns the [`ReplyBody`](ReplyBody) in this request, or `None` if this
-    /// message is not a RPC response.
+    /// Returns the [`ReplyBody`] in this request, or `None` if this message is
+    /// not a RPC response.
     pub fn reply_body(&self) -> Option<&ReplyBody<T, P>> {
         match self.message_type {
             MessageType::Reply(ref b) => Some(&b),
@@ -326,8 +327,7 @@ fn unwrap_header(data: &[u8]) -> Result<&[u8], Error> {
 ///
 /// `data` must contain at least 4 bytes, and must be the start of an RPC
 /// message for this call to return valid data. If the message does not have the
-/// `last fragment` bit set, [`Error::Fragmented`](crate::Error::Fragmented) is
-/// returned.
+/// `last fragment` bit set, [`Error::Fragmented`] is returned.
 pub fn expected_message_len(data: &[u8]) -> Result<u32, Error> {
     if data.len() < MSG_HEADER_LEN {
         return Err(Error::IncompleteHeader);

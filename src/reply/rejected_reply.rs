@@ -57,7 +57,7 @@ impl RejectedReply {
     }
 
     /// Serialises this `RejectedReply` into `buf`, advancing the cursor
-    /// position by [`serialised_len`](RejectedReply::serialised_len) bytes.
+    /// position by [`RejectedReply::serialised_len()`] bytes.
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         match self {
             RejectedReply::RpcVersionMismatch { low: l, high: h } => {
@@ -135,11 +135,12 @@ pub enum AuthError {
 
     /// The session has been invalidated.
     ///
-    /// This typically occurs if using
-    /// [`AUTH_SHORT`](crate::auth::AuthFlavor::AuthShort) and the opaque
-    /// identifier has been revoked on the server side.
+    /// This typically occurs if using [`AUTH_SHORT`] and the opaque identifier
+    /// has been revoked on the server side.
     ///
     /// This is `AUTH_REJECTEDCRED` in the spec.
+    ///
+    /// [`AUTH_SHORT`]: crate::auth::AuthFlavor::AuthShort
     RejectedCredentials,
 
     /// The verifier was not acceptable.
@@ -186,7 +187,7 @@ impl AuthError {
     }
 
     /// Serialises this `AuthError` into `buf`, advancing the cursor position by
-    /// [`serialised_len`](AuthError::serialised_len) bytes.
+    /// [`AuthError::serialised_len()`] bytes.
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         let id = match self {
             AuthError::Success => AUTH_ERROR_SUCCESS,

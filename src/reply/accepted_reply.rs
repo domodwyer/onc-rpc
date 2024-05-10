@@ -44,8 +44,7 @@ where
     T: AsRef<[u8]>,
     P: AsRef<[u8]>,
 {
-    /// Constructs a new `AcceptedReply` with the specified
-    /// [`AcceptedStatus`](AcceptedStatus).
+    /// Constructs a new `AcceptedReply` with the specified [`AcceptedStatus`].
     pub fn new(auth_verifier: AuthFlavor<T>, status: AcceptedStatus<P>) -> Self {
         AcceptedReply {
             auth_verifier,
@@ -54,7 +53,7 @@ where
     }
 
     /// Serialises this `AcceptedReply` into `buf`, advancing the cursor
-    /// position by [`serialised_len`](AcceptedReply::serialised_len) bytes.
+    /// position by [`AcceptedReply::serialised_len()`] bytes.
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         self.auth_verifier.serialise_into(&mut buf)?;
         self.status.serialise_into(&mut buf)
@@ -184,7 +183,7 @@ where
     P: AsRef<[u8]>,
 {
     /// Serialises this `AcceptedStatus` into `buf`, advancing the cursor
-    /// position by [`serialised_len`](AcceptedStatus::serialised_len) bytes.
+    /// position by [`AcceptedStatus::serialised_len()`] bytes.
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         match self {
             AcceptedStatus::Success(p) => {

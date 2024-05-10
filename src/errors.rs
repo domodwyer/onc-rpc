@@ -32,17 +32,23 @@ pub enum Error {
     #[error("RPC message is fragmented")]
     Fragmented,
 
-    /// The message type in the RPC request is neither [Call](crate::MessageType::Call)
-    /// or [Reply](crate::MessageType::Reply).
+    /// The message type in the RPC request is neither [`MessageType::Call`]
+    /// or [`MessageType::Reply`].
     ///
     /// This is a violation of the spec.
+    ///
+    /// [`MessageType::Call`]: crate::MessageType::Call
+    /// [`MessageType::Reply`]: crate::MessageType::Reply
     #[error("invalid rpc message type {0}")]
     InvalidMessageType(u32),
 
-    /// The message type in the RPC request is neither
-    /// [Accepted](crate::ReplyBody::Accepted) or [Denied](crate::ReplyBody::Denied).
+    /// The message type in the RPC request is neither [`ReplyBody::Accepted`]
+    /// or [`ReplyBody::Denied`].
     ///
     /// This is a violation of the spec.
+    ///
+    /// [`ReplyBody::Accepted`]: crate::ReplyBody::Accepted
+    /// [`ReplyBody::Denied`]: crate::ReplyBody::Denied
     #[error("invalid rpc reply type {0}")]
     InvalidReplyType(u32),
 
@@ -80,8 +86,8 @@ pub enum Error {
     #[error("invalid rpc version {0}")]
     InvalidRpcVersion(u32),
 
-    /// The [machine name](crate::auth::AuthUnixParams::machine_name) contains non-UTF8
-    /// characters.
+    /// The [machine name](crate::auth::AuthUnixParams::machine_name) contains
+    /// non-UTF8 characters.
     #[error("invalid machine name: {0}")]
     InvalidMachineName(#[from] std::str::Utf8Error),
 

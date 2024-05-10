@@ -28,16 +28,16 @@ where
     /// `AUTH_UNIX` and the fields it contains.
     AuthUnix(AuthUnixParams<T>),
 
-    /// `AUTH_SHORT and its opaque identifier
+    /// `AUTH_SHORT` and its opaque identifier
     AuthShort(T),
 
     /// An authentication credential unknown to this library, but possibly valid
     /// and acceptable by the server.
     Unknown {
-        /// The discriminator for this auth type.
+        /// The discriminator for this undefined auth type.
         id: u32,
 
-        /// The opaque data contained within the this flavor.
+        /// The opaque data contained within the this flavour.
         data: T,
     },
 }
