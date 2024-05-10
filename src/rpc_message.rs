@@ -1,14 +1,15 @@
 //! Contains types to implement the Open Network Computing RPC specification
 //! defined in RFC 5531
 
-use crate::bytes_ext::BytesReaderExt;
-use crate::reply::ReplyBody;
-use crate::CallBody;
-use crate::Error;
+use std::{
+    convert::TryFrom,
+    io::{Cursor, Write},
+};
+
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::{Buf, Bytes};
-use std::io::Cursor;
-use std::{convert::TryFrom, io::Write};
+
+use crate::{bytes_ext::BytesReaderExt, reply::ReplyBody, CallBody, Error};
 
 const MSG_HEADER_LEN: usize = 4;
 const LAST_FRAGMENT_BIT: u32 = 1 << 31;
@@ -337,11 +338,11 @@ pub fn expected_message_len(data: &[u8]) -> Result<u32, Error> {
     //
     // RFC1831 defines it as a big endian, 4 byte unsigned number:
     //
-    //      The number encodes two values -- a boolean which indicates whether the
-    //      fragment is the last fragment of the record (bit value 1 implies the
-    //      fragment is the last fragment) and a 31-bit unsigned binary value which is
-    //      the length in bytes of the fragment's data.  The boolean value is the
-    //      highest-order bit of the header; the length is the 31 low-order bits.
+    // > The number encodes two values -- a boolean which indicates whether the
+    // > fragment is the last fragment of the record (bit value 1 implies the
+    // > fragment is the last fragment) and a 31-bit unsigned binary value which is
+    // > the length in bytes of the fragment's data.  The boolean value is the
+    // > highest-order bit of the header; the length is the 31 low-order bits.
     //
     let header = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
 
@@ -372,11 +373,11 @@ pub(crate) fn read_slice_bytes<'a>(c: &mut Cursor<&'a [u8]>, len: u32) -> Result
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::auth::AuthFlavor;
-    use crate::AcceptedStatus;
     use hex_literal::hex;
     use smallvec::smallvec;
+
+    use super::*;
+    use crate::{auth::AuthFlavor, AcceptedStatus};
 
     #[test]
     fn test_unwrap_header() {

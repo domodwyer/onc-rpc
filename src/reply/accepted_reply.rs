@@ -1,10 +1,12 @@
-use crate::auth::AuthFlavor;
-use crate::bytes_ext::BytesReaderExt;
-use crate::Error;
+use std::{
+    convert::TryFrom,
+    io::{Cursor, Write},
+};
+
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::{Buf, Bytes};
-use std::convert::TryFrom;
-use std::io::{Cursor, Write};
+
+use crate::{auth::AuthFlavor, bytes_ext::BytesReaderExt, Error};
 
 const REPLY_SUCCESS: u32 = 0;
 const REPLY_PROG_UNAVAIL: u32 = 1;

@@ -1,11 +1,13 @@
-use crate::bytes_ext::BytesReaderExt;
-use crate::read_slice_bytes;
-use crate::Error;
+use std::{
+    convert::TryFrom,
+    io::{Cursor, Write},
+};
+
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::Bytes;
 use smallvec::SmallVec;
-use std::convert::TryFrom;
-use std::io::{Cursor, Write};
+
+use crate::{bytes_ext::BytesReaderExt, read_slice_bytes, Error};
 
 /// `AuthUnixParams` represents the structures referred to as both `AUTH_UNIX`
 /// and `AUTH_SYS` in the various RFCs, used to idenitfy the client as a Unix
@@ -214,9 +216,10 @@ impl TryFrom<Bytes> for AuthUnixParams<Bytes> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use hex_literal::hex;
     use smallvec::smallvec;
+
+    use super::*;
 
     #[test]
     fn test_serialise_deserialise() {

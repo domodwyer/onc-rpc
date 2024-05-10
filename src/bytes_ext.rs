@@ -1,5 +1,6 @@
-use crate::Error;
 use bytes::{Buf, Bytes};
+
+use crate::Error;
 
 /// An extension to the `bytes::Bytes` type, providing a non-panic alternative
 /// to the `get_u32` method, and an array helper.

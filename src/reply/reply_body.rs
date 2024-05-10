@@ -1,12 +1,13 @@
-use super::{AcceptedReply, RejectedReply};
-use crate::bytes_ext::BytesReaderExt;
-use crate::Error;
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use bytes::Bytes;
 use std::{
     convert::TryFrom,
     io::{Cursor, Write},
 };
+
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use bytes::Bytes;
+
+use super::{AcceptedReply, RejectedReply};
+use crate::{bytes_ext::BytesReaderExt, Error};
 
 const REPLY_ACCEPTED: u32 = 0;
 const REPLY_DENIED: u32 = 1;

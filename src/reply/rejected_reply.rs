@@ -1,11 +1,12 @@
-use crate::bytes_ext::BytesReaderExt;
-use crate::Error;
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use bytes::Bytes;
 use std::{
     convert::TryFrom,
     io::{Cursor, Write},
 };
+
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use bytes::Bytes;
+
+use crate::{bytes_ext::BytesReaderExt, Error};
 
 const REJECTED_RPC_MISMATCH: u32 = 0;
 const REJECTED_AUTH_ERROR: u32 = 1;

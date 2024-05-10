@@ -1,11 +1,12 @@
-use crate::auth::AuthUnixParams;
-use crate::bytes_ext::BytesReaderExt;
-use crate::read_slice_bytes;
-use crate::Error;
+use std::{
+    convert::TryFrom,
+    io::{Cursor, Write},
+};
+
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::Bytes;
-use std::convert::TryFrom;
-use std::io::{Cursor, Write};
+
+use crate::{auth::AuthUnixParams, bytes_ext::BytesReaderExt, read_slice_bytes, Error};
 
 const AUTH_NONE: u32 = 0;
 const AUTH_UNIX: u32 = 1;
@@ -205,9 +206,11 @@ impl TryFrom<Bytes> for AuthFlavor<Bytes> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use hex_literal::hex;
     use std::convert::TryInto;
+
+    use hex_literal::hex;
+
+    use super::*;
 
     #[test]
     fn test_auth_unix<'a>() {

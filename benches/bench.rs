@@ -1,3 +1,8 @@
+use std::{
+    convert::{TryFrom, TryInto},
+    io::Cursor,
+};
+
 use bytes::Bytes;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use hex_literal::hex;
@@ -6,9 +11,6 @@ use onc_rpc::{
     CallBody, MessageType, RpcMessage,
 };
 use smallvec::smallvec;
-use std::convert::TryFrom;
-use std::convert::TryInto;
-use std::io::Cursor;
 
 pub fn auth(c: &mut Criterion) {
     c.bench_function("deserialise_auth_unix", |b| {
