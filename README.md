@@ -24,7 +24,13 @@ use onc_rpc::{
 };
 
 // Add RPC call authentication.
-let auth_params = AuthUnixParams::new(42, "bananas.local", 501, 501, None);
+let auth_params = AuthUnixParams::new(
+	42,										// Stamp
+	"bananas.local",						// Machine name
+	501,									// UID
+	501,									// GID
+	None,									// Additional GIDs
+);
 
 // Build a dummy byte payload.
 let payload = vec![42, 42, 42, 42];
@@ -42,7 +48,7 @@ let msg = RpcMessage::new(
     )),
 );
 
-// Serialise the RPC message into anything that implements std::io::Write
+// Serialise the RPC message into anything that implements io::Write
 let mut network_buffer = Vec::new();
 msg.serialise_into(&mut network_buffer).expect("serialise message");
 
