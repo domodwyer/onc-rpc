@@ -1,3 +1,6 @@
+[![crates.io](https://img.shields.io/crates/v/onc-rpc.svg)](https://crates.io/crates/onc-rpc)
+[![docs.rs](https://docs.rs/onc-rpc/badge.svg)](https://docs.rs/onc-rpc)
+
 # ONC RPC
 
 This crate implements the `Open Network Computing Remote Procedure Call` system
@@ -9,6 +12,42 @@ This crate implements the `Open Network Computing Remote Procedure Call` system
 * Only safe Rust code
 * No heap allocations
 * Simple, descriptive, one-to-one types matching the RFCs
+
+## Example
+
+```rust
+use onc_rpc::{
+    auth::{AuthFlavor, AuthUnixParams},
+    CallBody,
+    MessageType,
+    RpcMessage,
+};
+
+// Add RPC call authentication.
+let auth_params = AuthUnixParams::new(42, "bananas.local", 501, 501, None);
+
+// Build a dummy byte payload.
+let payload = vec![42, 42, 42, 42];
+
+// Construct the actual RPC message.
+let msg = RpcMessage::new(
+    4242,
+    MessageType::Call(CallBody::new(
+        100000,
+        42,
+        13,
+        AuthFlavor::AuthUnix(auth_params),
+        AuthFlavor::AuthNone(None),
+        &payload,
+    )),
+);
+
+// Serialise the RPC message into anything that implements std::io::Write
+let mut network_buffer = Vec::new();
+msg.serialise_into(&mut network_buffer).expect("serialise message");
+
+// And do something with it!
+```
 
 ## Limitations
 

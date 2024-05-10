@@ -1,6 +1,4 @@
-//! An implementation of RFC 5531, including the defined types, authentication
-//! flavors and fast (de)serialisation.
-
+#![doc = include_str!("../README.md")]
 #![deny(rustdoc::broken_intra_doc_links, rust_2018_idioms)]
 #![warn(
     clippy::clone_on_ref_ptr,
@@ -34,7 +32,6 @@ pub mod auth;
 
 mod bytes_ext;
 
-// TODO: code examples
 // Unused crate lint workaround for dev dependency.
 #[cfg(test)]
 use criterion as _;
