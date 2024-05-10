@@ -33,11 +33,11 @@ let payload = vec![42, 42, 42, 42];
 let msg = RpcMessage::new(
     4242,
     MessageType::Call(CallBody::new(
-        100000,
-        42,
-        13,
-        AuthFlavor::AuthUnix(auth_params),
-        AuthFlavor::AuthNone(None),
+        100000, 							// Program number
+        42,									// Program version
+        13,									// Procedure number
+        AuthFlavor::AuthUnix(auth_params),	// Credentials
+        AuthFlavor::AuthNone(None),			// Response verifier
         &payload,
     )),
 );
@@ -75,7 +75,7 @@ decode arbitrary inputs, and if successful serialises the resulting message and
 compares the result with the input.
 
 Install [`cargo fuzz`] and invoke the fuzzer with `cargo fuzz run
-parse_serialise -- -jobs=30` for parallised workers.
+parse_serialise -- -jobs=30` for parallelised workers.
 
 [deprecated]: https://tools.ietf.org/html/rfc2695#section-2
 [RFC 1831]: https://tools.ietf.org/html/rfc1831

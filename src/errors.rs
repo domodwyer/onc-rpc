@@ -91,7 +91,7 @@ pub enum Error {
     #[error("invalid machine name: {0}")]
     InvalidMachineName(#[from] std::str::Utf8Error),
 
-    /// An I/O error occured when trying to parse the buffer.
+    /// An I/O error occurred when trying to parse the buffer.
     #[error("i/o error ({0:?}): {1}")]
     IOError(std::io::ErrorKind, String),
 }

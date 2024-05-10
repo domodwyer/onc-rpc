@@ -10,7 +10,7 @@ use smallvec::SmallVec;
 use crate::{bytes_ext::BytesReaderExt, read_slice_bytes, Error};
 
 /// `AuthUnixParams` represents the structures referred to as both `AUTH_UNIX`
-/// and `AUTH_SYS` in the various RFCs, used to idenitfy the client as a Unix
+/// and `AUTH_SYS` in the various RFCs, used to identify the client as a Unix
 /// user.
 ///
 /// The structure is implemented as specified in `APPENDIX A` of

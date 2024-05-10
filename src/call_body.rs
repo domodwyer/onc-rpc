@@ -12,7 +12,7 @@ const RPC_VERSION: u32 = 2;
 
 /// A request invoking an RPC.
 ///
-/// This structure is the Rust equivilent of the `call_body` structure defined
+/// This structure is the Rust equivalent of the `call_body` structure defined
 /// in the [RFC](https://tools.ietf.org/html/rfc5531#section-9). The `rpcvers`
 /// field (representing the RPC protocol version) is hard coded to `2`.
 #[derive(Debug, PartialEq)]

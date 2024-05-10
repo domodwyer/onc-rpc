@@ -266,14 +266,14 @@ impl TryFrom<Bytes> for RpcMessage<Bytes, Bytes> {
     type Error = Error;
 
     fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
-        let orginal_buffer_len = v.len();
+        let original_buffer_len = v.len();
 
         // Read the message length from the header, and check v contains exactly
         // one message.
         let want = expected_message_len(v.as_ref())? as usize;
-        if orginal_buffer_len != want {
+        if original_buffer_len != want {
             return Err(Error::IncompleteMessage {
-                buffer_len: orginal_buffer_len,
+                buffer_len: original_buffer_len,
                 expected: want,
             });
         }
@@ -291,9 +291,9 @@ impl TryFrom<Bytes> for RpcMessage<Bytes, Bytes> {
         // This can occur if a message has a valid header length value for data,
         // but data contains more bytes than expected for this message type.
         let parsed_len = msg.serialised_len() as usize;
-        if parsed_len != orginal_buffer_len {
+        if parsed_len != original_buffer_len {
             return Err(Error::IncompleteMessage {
-                buffer_len: orginal_buffer_len,
+                buffer_len: original_buffer_len,
                 expected: parsed_len,
             });
         }
