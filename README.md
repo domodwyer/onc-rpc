@@ -29,7 +29,7 @@ let auth_params = AuthUnixParams::new(
 	"bananas.local",						// Machine name
 	501,									// UID
 	501,									// GID
-	None,									// Additional GIDs
+	None,									// No additional GIDs
 );
 
 // Build a dummy byte payload.

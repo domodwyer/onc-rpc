@@ -10,7 +10,6 @@ use onc_rpc::{
     auth::{AuthFlavor, AuthUnixParams},
     CallBody, MessageType, RpcMessage,
 };
-use smallvec::smallvec;
 
 pub fn auth(c: &mut Criterion) {
     c.bench_function("deserialise_auth_unix", |b| {
@@ -28,9 +27,10 @@ pub fn auth(c: &mut Criterion) {
     });
 
     c.bench_function("auth_unix_gids_read", |b| {
-        let gids =
-            smallvec![501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399,];
-        let p = AuthUnixParams::new(0, "", 501, 20, Some(gids));
+        let gids = [
+            501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399,
+        ];
+        let p = AuthUnixParams::new(0, "", 501, 20, gids);
 
         b.iter(|| black_box(p.gids()))
     });
@@ -84,9 +84,10 @@ pub fn rpc_message(c: &mut Criterion) {
     });
 
     c.bench_function("serialise_into_rpc_message_no_payload", |b| {
-        let gids =
-            smallvec![501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399,];
-        let params = AuthUnixParams::new(0, "", 501, 20, Some(gids));
+        let gids = [
+            501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399,
+        ];
+        let params = AuthUnixParams::new(0, "", 501, 20, gids);
         let payload = vec![];
         let msg = RpcMessage::new(
             4242,

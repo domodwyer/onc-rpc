@@ -374,7 +374,6 @@ pub(crate) fn read_slice_bytes<'a>(c: &mut Cursor<&'a [u8]>, len: u32) -> Result
 #[cfg(test)]
 mod tests {
     use hex_literal::hex;
-    use smallvec::smallvec;
 
     use super::*;
     use crate::{auth::AuthFlavor, AcceptedStatus};
@@ -539,9 +538,9 @@ mod tests {
         assert_eq!(auth.gid(), 20);
         assert_eq!(
             auth.gids(),
-            Some(&smallvec![
-                501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399
-            ])
+            Some(
+                [501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399].as_slice()
+            )
         );
         assert_eq!(auth.serialised_len(), 84);
 
@@ -677,9 +676,9 @@ mod tests {
         assert_eq!(auth.gid(), 20);
         assert_eq!(
             auth.gids(),
-            Some(&smallvec![
-                501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399
-            ])
+            Some(
+                [501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399].as_slice()
+            )
         );
         assert_eq!(auth.serialised_len(), 84);
 
@@ -797,7 +796,7 @@ mod tests {
         assert_eq!(params.uid(), 0);
         assert_eq!(params.gid(), 0);
         assert_eq!(params.serialised_len(), 24);
-        assert_eq!(params.gids(), Some(&smallvec![0]));
+        assert_eq!(params.gids(), Some([0].as_slice()));
 
         assert_eq!(*body.auth_verifier(), AuthFlavor::AuthNone(None));
         assert_eq!(body.auth_verifier().serialised_len(), 8);

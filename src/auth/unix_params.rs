@@ -1,13 +1,62 @@
 use std::{
     convert::TryFrom,
     io::{Cursor, Write},
+    iter::FromIterator,
+    ops::Deref,
 };
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::Bytes;
-use smallvec::SmallVec;
 
 use crate::{bytes_ext::BytesReaderExt, read_slice_bytes, Error};
+
+const MAX_GIDS: usize = 16;
+
+/// A variable length array of GID values with a maximum capacity of
+/// [`MAX_GIDS`].
+#[derive(Clone, PartialEq, Default)]
+struct Gids {
+    /// The GID values container.
+    values: [u32; MAX_GIDS],
+
+    /// 1-indexed length (number of elements) in `values`.
+    len: u8,
+}
+
+impl Deref for Gids {
+    type Target = [u32];
+
+    fn deref(&self) -> &Self::Target {
+        &self.values[..self.len as usize]
+    }
+}
+
+impl std::fmt::Debug for Gids {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+
+impl FromIterator<u32> for Gids {
+    fn from_iter<T: IntoIterator<Item = u32>>(iter: T) -> Self {
+        let mut values = [0; MAX_GIDS];
+        let mut len = 0;
+
+        // Populate up to MAX_GIDS number of elements
+        for v in iter.into_iter() {
+            // Never silently drop extra values.
+            assert!(len < MAX_GIDS);
+
+            values[len] = v;
+            len += 1;
+        }
+
+        Self {
+            values,
+            len: len as u8,
+        }
+    }
+}
 
 /// `AuthUnixParams` represents the structures referred to as both `AUTH_UNIX`
 /// and `AUTH_SYS` in the various RFCs, used to identify the client as a Unix
@@ -26,7 +75,7 @@ where
     machine_name: T,
     uid: u32,
     gid: u32,
-    gids: Option<SmallVec<[u32; 16]>>,
+    gids: Gids,
 }
 
 impl<'a> AuthUnixParams<&'a [u8]> {
@@ -59,14 +108,10 @@ impl<'a> AuthUnixParams<&'a [u8]> {
         // Gids
         let gids_count = r.read_u32::<BigEndian>()? as usize;
         let gids = match gids_count {
-            0 => None,
-            c if c <= 16 => {
-                let mut v = SmallVec::<[u32; 16]>::new();
-                for _ in 0..c {
-                    v.push(r.read_u32::<BigEndian>()?);
-                }
-                Some(v)
-            }
+            0 => Gids::default(),
+            c if c <= 16 => (0..c)
+                .map(|_| r.read_u32::<BigEndian>())
+                .collect::<Result<Gids, _>>()?,
             _ => return Err(Error::InvalidAuthData),
         };
 
@@ -97,14 +142,14 @@ where
         machine_name: T,
         uid: u32,
         gid: u32,
-        gids: Option<SmallVec<[u32; 16]>>,
+        gids: impl IntoIterator<Item = u32>,
     ) -> Self {
         Self {
             stamp,
             machine_name,
             uid,
             gid,
-            gids,
+            gids: gids.into_iter().collect::<Gids>(),
         }
     }
 
@@ -118,13 +163,11 @@ where
         buf.write_u32::<BigEndian>(self.gid)?;
 
         // Gids array length prefix
-        buf.write_u32::<BigEndian>(self.gids.as_ref().map_or(0, |v| v.len() as u32))?;
+        buf.write_u32::<BigEndian>(self.gids.deref().len() as u32)?;
 
         // Gids values
-        if let Some(gids) = self.gids.as_ref() {
-            for g in gids {
-                buf.write_u32::<BigEndian>(*g)?;
-            }
+        for g in &*self.gids {
+            buf.write_u32::<BigEndian>(*g)?;
         }
         Ok(())
     }
@@ -161,8 +204,11 @@ where
 
     /// Returns a copy of the `gids` array, a set of Unix group IDs the caller
     /// is a member of.
-    pub fn gids(&self) -> Option<&SmallVec<[u32; 16]>> {
-        self.gids.as_ref()
+    pub fn gids(&self) -> Option<&[u32]> {
+        if self.gids.len == 0 {
+            return None;
+        }
+        Some(&*self.gids)
     }
 
     /// Returns the on-wire length of this message once serialised, including
@@ -175,7 +221,7 @@ where
         l += std::mem::size_of::<u32>() + self.machine_name.as_ref().len();
 
         // gids length prefix u32 + values
-        l += (self.gids.as_ref().map_or(0, |g| g.len()) + 1) * std::mem::size_of::<u32>();
+        l += (self.gids.deref().len() + 1) * std::mem::size_of::<u32>();
 
         l as u32
     }
@@ -193,14 +239,8 @@ impl TryFrom<Bytes> for AuthUnixParams<Bytes> {
 
         let gids_count = v.try_u32()? as usize;
         let gids = match gids_count {
-            0 => None,
-            c if c <= 16 => {
-                let mut vec = SmallVec::<[u32; 16]>::new();
-                for _ in 0..c {
-                    vec.push(v.try_u32()?);
-                }
-                Some(vec)
-            }
+            0 => Gids::default(),
+            c if c <= 16 => (0..c).map(|_| v.try_u32()).collect::<Result<Gids, _>>()?,
             _ => return Err(Error::InvalidAuthData),
         };
 
@@ -217,15 +257,15 @@ impl TryFrom<Bytes> for AuthUnixParams<Bytes> {
 #[cfg(test)]
 mod tests {
     use hex_literal::hex;
-    use smallvec::smallvec;
 
     use super::*;
 
     #[test]
     fn test_serialise_deserialise() {
-        let gids =
-            smallvec![501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399,];
-        let params = AuthUnixParams::new(0, b"".as_ref(), 501, 20, Some(gids));
+        let gids = [
+            501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399,
+        ];
+        let params = AuthUnixParams::new(0, b"".as_ref(), 501, 20, gids);
 
         let mut buf = Cursor::new(Vec::new());
         params
@@ -303,7 +343,7 @@ mod tests {
         assert_eq!(s.machine_name_str(), "");
         assert_eq!(s.uid(), 0);
         assert_eq!(s.gid(), 0);
-        assert_eq!(s.gids(), Some(&smallvec![0]));
+        assert_eq!(s.gids(), Some([0].as_slice()));
         assert_eq!(s.serialised_len(), 24);
 
         let mut buf = Cursor::new(Vec::new());
@@ -362,9 +402,9 @@ mod tests {
         assert_eq!(got.gid(), 20);
         assert_eq!(
             got.gids(),
-            Some(&smallvec![
-                501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399
-            ])
+            Some(
+                [501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399].as_slice()
+            )
         );
         assert_eq!(got.serialised_len(), 84);
     }
@@ -393,7 +433,7 @@ mod tests {
         assert_eq!(s.machine_name_str(), "");
         assert_eq!(s.uid(), 0);
         assert_eq!(s.gid(), 0);
-        assert_eq!(s.gids(), Some(&smallvec![0]));
+        assert_eq!(s.gids(), Some([0].as_slice()));
         assert_eq!(s.serialised_len(), 24);
 
         let mut buf = Cursor::new(Vec::new());
