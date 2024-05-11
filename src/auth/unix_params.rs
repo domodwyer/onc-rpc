@@ -65,6 +65,10 @@ impl FromIterator<u32> for Gids {
 /// The structure is implemented as specified in `APPENDIX A` of
 /// [RFC1831](https://tools.ietf.org/html/rfc1831).
 ///
+/// The client-provided machine name is limited to, at most, 16 bytes. If
+/// additional group IDs ([`AuthUnixParams::gids()`]) are provided, the protocol
+/// allows for at most 16 values.
+///
 /// These values are trivial to forge and provide no actual security.
 #[derive(Debug, PartialEq, Clone)]
 pub struct AuthUnixParams<T>
@@ -137,6 +141,11 @@ where
 {
     /// Initialise a new `AuthUnixParams` instance containing the specified unix
     /// account identifiers.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the machine name exceeds 16 bytes, or `gids` contains more
+    /// than 16 elements.
     pub fn new(
         stamp: u32,
         machine_name: T,
@@ -144,6 +153,8 @@ where
         gid: u32,
         gids: impl IntoIterator<Item = u32>,
     ) -> Self {
+        assert!(machine_name.as_ref().len() <= 16);
+
         Self {
             stamp,
             machine_name,
@@ -442,5 +453,31 @@ mod tests {
         let buf = buf.into_inner();
         assert_eq!(want.len(), buf.len());
         assert_eq!(want.as_ref(), buf.as_slice());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_long_machine_name_panic() {
+        AuthUnixParams::new(
+            42,
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+            42,
+            42,
+            None,
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_long_gids_panic() {
+        AuthUnixParams::new(
+            42,
+            [],
+            42,
+            42,
+            [
+                1_u32, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+            ],
+        );
     }
 }

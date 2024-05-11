@@ -24,12 +24,16 @@ where
 {
     /// `AUTH_NONE` with the opaque data the spec allows to be included
     /// (typically `None`).
+    ///
+    /// The provided opaque auth payload must not exceed 200 bytes in length.
     AuthNone(Option<T>),
 
     /// `AUTH_UNIX` and the fields it contains.
     AuthUnix(AuthUnixParams<T>),
 
     /// `AUTH_SHORT` and its opaque identifier
+    ///
+    /// The provided opaque auth payload must not exceed 200 bytes in length.
     AuthShort(T),
 
     /// An authentication credential unknown to this library, but possibly valid
@@ -39,6 +43,8 @@ where
         id: u32,
 
         /// The opaque data contained within the this flavour.
+        ///
+        /// This payload must not exceed 200 bytes in length.
         data: T,
     },
 }
@@ -91,11 +97,16 @@ where
     T: AsRef<[u8]>,
 {
     /// Serialises this auth flavor and writes it into buf.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an associated byte payload is provided that exceeds 200 bytes.
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         buf.write_u32::<BigEndian>(self.id())?;
 
         // Write the length of the following auth data
         buf.write_u32::<BigEndian>(self.associated_data_len())?;
+        assert!(self.associated_data_len() <= 200);
 
         // Write the actual auth data
         match self {

@@ -373,10 +373,10 @@ pub(crate) fn read_slice_bytes<'a>(c: &mut Cursor<&'a [u8]>, len: u32) -> Result
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Range;
+    use std::ops::RangeInclusive;
 
     use hex_literal::hex;
-    use proptest::{option::of, prelude::*};
+    use proptest::{option::of, prelude::*, sample::SizeRange};
 
     use super::*;
     use crate::{
@@ -978,12 +978,12 @@ mod tests {
         assert_eq!(msg.call_body().unwrap().payload(), &buf1);
     }
 
-    const OPAQUE_BYTE_SIZE: Range<usize> = 0..130;
+    const OPAQUE_BYTE_SIZE: RangeInclusive<usize> = 0..=1025;
 
     /// Generate a strategy that yields arbitrary byte arrays with a random
     /// length within the [`OPAQUE_BYTE_SIZE`] range.
-    fn arbitrary_bytes() -> impl Strategy<Value = Vec<u8>> {
-        prop::collection::vec(prop::num::u8::ANY, OPAQUE_BYTE_SIZE)
+    fn arbitrary_bytes(r: impl Into<SizeRange>) -> impl Strategy<Value = Vec<u8>> {
+        prop::collection::vec(prop::num::u8::ANY, r)
     }
 
     prop_compose! {
@@ -1007,13 +1007,13 @@ mod tests {
     fn arbitrary_auth_flavor() -> impl Strategy<Value = AuthFlavor<Vec<u8>>> {
         prop_oneof![
             // AuthNone
-            of(arbitrary_bytes()).prop_map(AuthFlavor::AuthNone),
+            of(arbitrary_bytes(0..=200)).prop_map(AuthFlavor::AuthNone),
             // AuthUnix
             arbitrary_unix_auth_params().prop_map(AuthFlavor::AuthUnix),
             // AuthShort
-            arbitrary_bytes().prop_map(AuthFlavor::AuthShort),
+            arbitrary_bytes(0..=200).prop_map(AuthFlavor::AuthShort),
             // Unknown
-            (any::<u32>(), arbitrary_bytes())
+            (any::<u32>(), arbitrary_bytes(0..=200))
                 .prop_map(|(id, data)| AuthFlavor::Unknown { id, data })
         ]
     }
@@ -1025,7 +1025,7 @@ mod tests {
             procedure in any::<u32>(),
             auth_credentials in arbitrary_auth_flavor(),
             auth_verifier in arbitrary_auth_flavor(),
-            payload in arbitrary_bytes(),
+            payload in arbitrary_bytes(OPAQUE_BYTE_SIZE),
         ) -> CallBody<Vec<u8>, Vec<u8>> {
             CallBody::new(
                 program,
@@ -1040,7 +1040,7 @@ mod tests {
 
     fn arbitrary_accepted_status() -> impl Strategy<Value = AcceptedStatus<Vec<u8>>> {
         prop_oneof![
-            arbitrary_bytes().prop_map(AcceptedStatus::Success),
+            arbitrary_bytes(OPAQUE_BYTE_SIZE).prop_map(AcceptedStatus::Success),
             Just(AcceptedStatus::ProgramUnavailable),
             (any::<u32>(), any::<u32>())
                 .prop_map(|(low, high)| AcceptedStatus::ProgramMismatch { low, high }),
