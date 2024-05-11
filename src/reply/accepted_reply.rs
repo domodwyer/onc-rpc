@@ -103,7 +103,7 @@ impl TryFrom<Bytes> for AcceptedReply<Bytes, Bytes> {
 }
 
 /// The response status code for a request that contains valid credentials.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum AcceptedStatus<P>
 where
     P: AsRef<[u8]>,

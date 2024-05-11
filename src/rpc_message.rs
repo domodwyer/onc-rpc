@@ -373,10 +373,16 @@ pub(crate) fn read_slice_bytes<'a>(c: &mut Cursor<&'a [u8]>, len: u32) -> Result
 
 #[cfg(test)]
 mod tests {
+    use std::ops::Range;
+
     use hex_literal::hex;
+    use proptest::{option::of, prelude::*};
 
     use super::*;
-    use crate::{auth::AuthFlavor, AcceptedStatus};
+    use crate::{
+        auth::{AuthFlavor, AuthUnixParams},
+        AcceptedReply, AcceptedStatus, AuthError, RejectedReply,
+    };
 
     #[test]
     fn test_unwrap_header() {
@@ -970,5 +976,164 @@ mod tests {
         let msg = RpcMessage::new(42, MessageType::Call(body));
 
         assert_eq!(msg.call_body().unwrap().payload(), &buf1);
+    }
+
+    const OPAQUE_BYTE_SIZE: Range<usize> = 0..130;
+
+    /// Generate a strategy that yields arbitrary byte arrays with a random
+    /// length within the [`OPAQUE_BYTE_SIZE`] range.
+    fn arbitrary_bytes() -> impl Strategy<Value = Vec<u8>> {
+        prop::collection::vec(prop::num::u8::ANY, OPAQUE_BYTE_SIZE)
+    }
+
+    prop_compose! {
+        fn arbitrary_unix_auth_params()(
+            stamp in any::<u32>(),
+            machine_name in prop::collection::vec(prop::num::u8::ANY, 0..=16),
+            uid in any::<u32>(),
+            gid in any::<u32>(),
+            gids in prop::collection::vec(any::<u32>(), 0..=16),
+        ) -> AuthUnixParams<Vec<u8>> {
+            AuthUnixParams::new(
+                stamp,
+                machine_name,
+                uid,
+                gid,
+                gids,
+            )
+        }
+    }
+
+    fn arbitrary_auth_flavor() -> impl Strategy<Value = AuthFlavor<Vec<u8>>> {
+        prop_oneof![
+            // AuthNone
+            of(arbitrary_bytes()).prop_map(AuthFlavor::AuthNone),
+            // AuthUnix
+            arbitrary_unix_auth_params().prop_map(AuthFlavor::AuthUnix),
+            // AuthShort
+            arbitrary_bytes().prop_map(AuthFlavor::AuthShort),
+            // Unknown
+            (any::<u32>(), arbitrary_bytes())
+                .prop_map(|(id, data)| AuthFlavor::Unknown { id, data })
+        ]
+    }
+
+    prop_compose! {
+        fn arbitrary_call_body()(
+            program in any::<u32>(),
+            program_version in any::<u32>(),
+            procedure in any::<u32>(),
+            auth_credentials in arbitrary_auth_flavor(),
+            auth_verifier in arbitrary_auth_flavor(),
+            payload in arbitrary_bytes(),
+        ) -> CallBody<Vec<u8>, Vec<u8>> {
+            CallBody::new(
+                program,
+                program_version,
+                procedure,
+                auth_credentials,
+                auth_verifier,
+                payload,
+            )
+        }
+    }
+
+    fn arbitrary_accepted_status() -> impl Strategy<Value = AcceptedStatus<Vec<u8>>> {
+        prop_oneof![
+            arbitrary_bytes().prop_map(AcceptedStatus::Success),
+            Just(AcceptedStatus::ProgramUnavailable),
+            (any::<u32>(), any::<u32>())
+                .prop_map(|(low, high)| AcceptedStatus::ProgramMismatch { low, high }),
+            Just(AcceptedStatus::ProcedureUnavailable),
+            Just(AcceptedStatus::GarbageArgs),
+            Just(AcceptedStatus::SystemError),
+        ]
+    }
+
+    prop_compose! {
+        fn arbitrary_accepted_reply()(
+            auth_verifier in arbitrary_auth_flavor(),
+            status in arbitrary_accepted_status(),
+        ) -> AcceptedReply<Vec<u8>, Vec<u8>> {
+            AcceptedReply::new(
+                auth_verifier,
+                status
+            )
+        }
+    }
+
+    fn arbitrary_auth_error() -> impl Strategy<Value = AuthError> {
+        prop_oneof![
+            Just(AuthError::Success),
+            Just(AuthError::BadCredentials),
+            Just(AuthError::RejectedCredentials),
+            Just(AuthError::BadVerifier),
+            Just(AuthError::RejectedVerifier),
+            Just(AuthError::TooWeak),
+            Just(AuthError::InvalidResponseVerifier),
+            Just(AuthError::Failed),
+        ]
+    }
+
+    fn arbitrary_rejected_reply() -> impl Strategy<Value = RejectedReply> {
+        prop_oneof![
+            (any::<u32>(), any::<u32>())
+                .prop_map(|(low, high)| RejectedReply::RpcVersionMismatch { low, high }),
+            arbitrary_auth_error().prop_map(RejectedReply::AuthError),
+        ]
+    }
+
+    fn arbitrary_reply_body() -> impl Strategy<Value = ReplyBody<Vec<u8>, Vec<u8>>> {
+        prop_oneof![
+            arbitrary_accepted_reply().prop_map(ReplyBody::Accepted),
+            arbitrary_rejected_reply().prop_map(ReplyBody::Denied),
+        ]
+    }
+
+    fn arbitrary_message_type() -> impl Strategy<Value = MessageType<Vec<u8>, Vec<u8>>> {
+        prop_oneof![
+            arbitrary_call_body().prop_map(MessageType::Call),
+            arbitrary_reply_body().prop_map(MessageType::Reply),
+        ]
+    }
+
+    prop_compose! {
+        fn arbitrary_rpc_message()(
+            xid in any::<u32>(),
+            message_type in arbitrary_message_type(),
+        ) -> RpcMessage<Vec<u8>, Vec<u8>> {
+            RpcMessage::new(xid, message_type)
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn prop_round_trip(
+            msg in arbitrary_rpc_message(),
+        ) {
+            let mut buf = Vec::new();
+            msg.serialise_into(&mut buf).expect("valid message should serialise");
+
+            // Invariant: serialise_into() and serialise() are identical.
+            assert_eq!(buf, msg.serialise().unwrap());
+
+            // Invariant: serialised_len() reports an accurate byte length.
+            assert_eq!(msg.serialised_len() as usize, buf.len());
+
+            // Invariant: the serialised message length prefix is accurate.
+            let want = expected_message_len(&buf).expect("read message header length");
+            assert_eq!(want as usize, buf.len());
+
+            // Invariant: the serialised form of a valid message can always be
+            // read back as the original message (round trip-able).
+            let got = RpcMessage::from_bytes(&buf).expect("read valid message");
+
+            // The deserialised message uses a different buffer type (a borrowed
+            // slice instead of an owned vector), so they're not (currently)
+            // directly comparable. However if the serialised representation of
+            // the deserialised message is identical, then the messages are
+            // identical.
+            assert_eq!(buf, got.serialise().unwrap());
+        }
     }
 }

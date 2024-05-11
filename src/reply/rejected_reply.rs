@@ -124,7 +124,7 @@ impl TryFrom<Bytes> for RejectedReply {
 
 /// `AuthError` describes the reason the request authentication credentials were
 /// rejected.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum AuthError {
     /// This is `AUTH_OK` in the spec.
     Success,
