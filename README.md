@@ -48,9 +48,8 @@ let msg = RpcMessage::new(
     )),
 );
 
-// Serialise the RPC message into anything that implements io::Write
-let mut network_buffer = Vec::new();
-msg.serialise_into(&mut network_buffer).expect("serialise message");
+// Serialise the RPC message, or serialise_into() to reuse buffers.
+let network_buffer = msg.serialise().expect("serialise message");
 
 // And do something with it!
 ```
