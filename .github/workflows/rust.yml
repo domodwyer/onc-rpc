@@ -2,24 +2,34 @@ name: Rust
 
 on:
   push:
-    branches: [ master ]
   pull_request:
     branches: [ master ]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Build
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
 
+  fuzz-build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install cargo-fuzz
+      run: cargo install -f cargo-fuzz
+    - name: Install nightly
+      run: rustup toolchain install nightly
+    - name: Build
+      run: cargo +nightly fuzz build --verbose
+
   clippy_check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - run: rustup component add clippy
       - uses: actions-rs/clippy-check@v1
         with:
