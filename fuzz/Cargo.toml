@@ -10,8 +10,8 @@ edition = "2018"
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys = "0.3"
-bytes = "0.5.4"
+libfuzzer-sys = "0.4"
+bytes = "1"
 
 [dependencies.onc-rpc]
 path = ".."

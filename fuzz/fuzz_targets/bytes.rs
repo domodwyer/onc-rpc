@@ -1,8 +1,10 @@
 #![no_main]
+
+use std::convert::TryFrom;
+
 use bytes::Bytes;
 use libfuzzer_sys::fuzz_target;
 use onc_rpc::*;
-use std::convert::TryFrom;
 
 fuzz_target!(|data: &[u8]| {
     let bytes = Bytes::copy_from_slice(data);
