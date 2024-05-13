@@ -2,7 +2,7 @@
 name = "onc-rpc"
 version = "0.2.5"
 authors = ["Dom Dwyer <dom@itsallbroken.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
