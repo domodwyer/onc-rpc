@@ -32,6 +32,9 @@ pub mod auth;
 
 mod bytes_ext;
 
+// Re-export the `bytes` crate for users, to minimise version mismatches.
+pub use bytes::*;
+
 // Unused crate lint workaround for dev dependency.
 #[cfg(test)]
 use criterion as _;

@@ -2,7 +2,6 @@
 
 use std::convert::TryFrom;
 
-use bytes::Bytes;
 use libfuzzer_sys::fuzz_target;
 use onc_rpc::*;
 

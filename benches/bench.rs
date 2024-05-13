@@ -3,12 +3,11 @@ use std::{
     io::Cursor,
 };
 
-use bytes::Bytes;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use hex_literal::hex;
 use onc_rpc::{
     auth::{AuthFlavor, AuthUnixParams},
-    CallBody, MessageType, RpcMessage,
+    Bytes, CallBody, MessageType, RpcMessage,
 };
 
 pub fn auth(c: &mut Criterion) {

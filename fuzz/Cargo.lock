@@ -70,7 +70,6 @@ dependencies = [
 name = "onc-rpc-fuzz"
 version = "0.0.0"
 dependencies = [
- "bytes",
  "libfuzzer-sys",
  "onc-rpc",
 ]
