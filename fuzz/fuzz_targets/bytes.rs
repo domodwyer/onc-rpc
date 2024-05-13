@@ -12,8 +12,8 @@ fuzz_target!(|data: &[u8]| {
         let mut buf = m.serialise().expect("should be able to serialise");
         assert_eq!(buf.as_slice(), data);
 
-        // And check it matches the from_bytes data too
-        let slice_msg = RpcMessage::from_bytes(data).expect("failed to parse from bytes");
+        // And check it matches the "TryFrom slice" data too
+        let slice_msg = RpcMessage::try_from(data).expect("failed to parse from bytes");
 
         buf.clear();
         let mut c = std::io::Cursor::new(buf);

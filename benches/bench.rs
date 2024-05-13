@@ -61,12 +61,12 @@ pub fn rpc_message(c: &mut Criterion) {
         let raw_ref: &[u8] = raw.as_ref();
 
         b.iter(|| {
-            let a = RpcMessage::from_bytes(raw_ref).unwrap();
+            let a = RpcMessage::try_from(raw_ref).unwrap();
             black_box(a)
         })
     });
 
-    c.bench_function("deserialise_rpc_message_from_bytes", |b| {
+    c.bench_function("deserialise_rpc_message_from_slice", |b| {
         let raw: [u8; 156] = hex!(
             "80000098265ec1060000000000000002000186a300000004000000010000000100
     		0000180000000000000000000000000000000000000001000000000000000000000

@@ -110,33 +110,9 @@ impl<'a> RpcMessage<&'a [u8], &'a [u8]> {
     /// Buf must contain exactly 1 message - if `buf` contains an incomplete
     /// message, or `buf` contains trailing bytes after the message
     /// [`Error::IncompleteMessage`] is returned.
+    #[deprecated(since = "0.3.0", note = "prefer the `TryFrom` impl instead")]
     pub fn from_bytes(buf: &'a [u8]) -> Result<Self, Error> {
-        // Unwrap the message header, validating the length of data.
-        let data = unwrap_header(buf)?;
-
-        // Wrap the data in a cursor for ease of parsing.
-        let mut r = Cursor::new(data);
-
-        let xid = r.read_u32::<BigEndian>()?;
-        let message_type = MessageType::from_cursor(&mut r)?;
-
-        let msg = RpcMessage { xid, message_type };
-
-        // Detect messages that have more data than what was deserialised.
-        //
-        // This can occur if a message has a valid header length value for data,
-        // but data contains more bytes than expected for this message type.
-        //
-        // +4 for the header which was
-        let want_len = buf.len() as u32;
-        if msg.serialised_len() != want_len {
-            return Err(Error::IncompleteMessage {
-                buffer_len: buf.len(),
-                expected: msg.serialised_len() as usize,
-            });
-        }
-
-        Ok(msg)
+        Self::try_from(buf)
     }
 }
 
@@ -259,8 +235,38 @@ where
 impl<'a> TryFrom<&'a [u8]> for RpcMessage<&'a [u8], &'a [u8]> {
     type Error = Error;
 
+    /// Deserialises a new [`RpcMessage`] from `buf`.
+    ///
+    /// Buf must contain exactly 1 message - if `buf` contains an incomplete
+    /// message, or `buf` contains trailing bytes after the message
+    /// [`Error::IncompleteMessage`] is returned.
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
-        RpcMessage::from_bytes(v)
+        // Unwrap the message header, validating the length of data.
+        let data = unwrap_header(v)?;
+
+        // Wrap the data in a cursor for ease of parsing.
+        let mut r = Cursor::new(data);
+
+        let xid = r.read_u32::<BigEndian>()?;
+        let message_type = MessageType::from_cursor(&mut r)?;
+
+        let msg = RpcMessage { xid, message_type };
+
+        // Detect messages that have more data than what was deserialised.
+        //
+        // This can occur if a message has a valid header length value for data,
+        // but data contains more bytes than expected for this message type.
+        //
+        // +4 for the header which was
+        let want_len = v.len() as u32;
+        if msg.serialised_len() != want_len {
+            return Err(Error::IncompleteMessage {
+                buffer_len: v.len(),
+                expected: msg.serialised_len() as usize,
+            });
+        }
+
+        Ok(msg)
     }
 }
 
@@ -530,7 +536,7 @@ mod tests {
 
         assert_eq!(expected_message_len(RAW.as_ref()).unwrap(), 288);
 
-        let msg = RpcMessage::from_bytes(RAW.as_ref()).expect("failed to parse message");
+        let msg = RpcMessage::try_from(RAW.as_ref()).expect("failed to parse message");
         assert_eq!(msg.xid(), 643743997);
         assert_eq!(msg.serialised_len(), 288);
 
@@ -790,7 +796,7 @@ mod tests {
 			000030000003f00000009000000021010011a00b0a23a"
         );
 
-        let msg = RpcMessage::from_bytes(RAW.as_ref()).expect("failed to parse message");
+        let msg = RpcMessage::try_from(RAW.as_ref()).expect("failed to parse message");
         assert_eq!(msg.xid(), 643744006);
         assert_eq!(msg.serialised_len(), 156);
 
@@ -847,7 +853,7 @@ mod tests {
             0020200000000000000"
         );
 
-        let msg = RpcMessage::from_bytes(RAW.as_ref()).expect("failed to parse message");
+        let msg = RpcMessage::try_from(RAW.as_ref()).expect("failed to parse message");
         assert_eq!(msg.xid(), 643743997);
         assert_eq!(msg.serialised_len(), 76);
 
@@ -934,7 +940,7 @@ mod tests {
             232323232300232300"
         );
 
-        let msg = RpcMessage::from_bytes(RAW.as_ref());
+        let msg = RpcMessage::try_from(RAW.as_ref());
         match msg {
             Err(Error::IncompleteMessage {
                 buffer_len: b,
@@ -1137,7 +1143,7 @@ mod tests {
 
             // Invariant: the serialised form of a valid message can always be
             // read back as the original message (round trip-able).
-            let got = RpcMessage::from_bytes(&buf).expect("read valid message");
+            let got = RpcMessage::try_from(&*buf).expect("read valid message");
 
             // The deserialised message uses a different buffer type (a borrowed
             // slice instead of an owned vector), so they're not (currently)
