@@ -201,3 +201,19 @@ impl TryFrom<crate::Bytes> for CallBody<crate::Bytes, crate::Bytes> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A compile-time test that ensures a payload can differ in type from the
+    // auth buffer.
+    #[test]
+    fn test_differing_payload_type() {
+        let auth = AuthFlavor::AuthNone(Some(vec![42]));
+        let payload = [42, 42, 42, 42];
+
+        let _call: CallBody<Vec<u8>, &[u8; 4]> =
+            CallBody::new(100000, 42, 13, auth.clone(), auth, &payload);
+    }
+}

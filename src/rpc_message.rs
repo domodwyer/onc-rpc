@@ -444,6 +444,19 @@ mod tests {
         assert_eq!(unwrap_header(&x), Err(Error::Fragmented));
     }
 
+    // A compile-time test that ensures a payload can differ in type from the
+    // auth buffer.
+    #[test]
+    fn test_differing_payload_type() {
+        let auth = AuthFlavor::AuthNone(Some(vec![42]));
+        let payload = [42, 42, 42, 42];
+
+        let _msg: RpcMessage<Vec<u8>, &[u8; 4]> = RpcMessage::new(
+            4242,
+            MessageType::Call(CallBody::new(100000, 42, 13, auth.clone(), auth, &payload)),
+        );
+    }
+
     #[test]
     fn test_rpcmessage_auth_unix() {
         // Frame 3: 354 bytes on wire (2832 bits), 354 bytes captured (2832 bits) on interface en0, id 0

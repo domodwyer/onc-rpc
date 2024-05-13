@@ -96,3 +96,23 @@ impl TryFrom<crate::Bytes> for ReplyBody<crate::Bytes, crate::Bytes> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::auth::AuthFlavor;
+
+    use super::*;
+
+    // A compile-time test that ensures a payload can differ in type from the
+    // auth buffer.
+    #[test]
+    fn test_differing_payload_type() {
+        let auth = AuthFlavor::AuthNone(Some(vec![42]));
+        let payload = [42, 42, 42, 42];
+
+        let _reply: ReplyBody<Vec<u8>, [u8; 4]> = ReplyBody::Accepted(AcceptedReply::new(
+            auth,
+            crate::AcceptedStatus::Success(payload),
+        ));
+    }
+}

@@ -259,3 +259,19 @@ impl TryFrom<crate::Bytes> for AcceptedStatus<crate::Bytes> {
         Ok(reply)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A compile-time test that ensures a payload can differ in type from the
+    // auth buffer.
+    #[test]
+    fn test_differing_payload_type() {
+        let auth = AuthFlavor::AuthNone(Some(vec![42]));
+        let payload = [42, 42, 42, 42];
+
+        let _reply: AcceptedReply<Vec<u8>, [u8; 4]> =
+            AcceptedReply::new(auth, AcceptedStatus::Success(payload));
+    }
+}
