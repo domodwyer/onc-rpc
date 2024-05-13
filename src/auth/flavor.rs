@@ -4,9 +4,8 @@ use std::{
 };
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use bytes::Bytes;
 
-use crate::{auth::AuthUnixParams, bytes_ext::BytesReaderExt, read_slice_bytes, Error};
+use crate::{auth::AuthUnixParams, read_slice_bytes, Error};
 
 const AUTH_NONE: u32 = 0;
 const AUTH_UNIX: u32 = 1;
@@ -180,10 +179,13 @@ impl<'a> TryFrom<&'a [u8]> for AuthFlavor<&'a [u8]> {
     }
 }
 
-impl TryFrom<Bytes> for AuthFlavor<Bytes> {
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for AuthFlavor<crate::Bytes> {
     type Error = Error;
 
-    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::bytes_ext::BytesReaderExt;
+
         let flavor = v.try_u32()?;
         let auth_data = v.try_array(200)?;
 

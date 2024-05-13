@@ -4,9 +4,8 @@ use std::{
 };
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use bytes::Bytes;
 
-use crate::{bytes_ext::BytesReaderExt, Error};
+use crate::Error;
 
 const REJECTED_RPC_MISMATCH: u32 = 0;
 const REJECTED_AUTH_ERROR: u32 = 1;
@@ -105,10 +104,13 @@ impl TryFrom<&[u8]> for RejectedReply {
     }
 }
 
-impl TryFrom<Bytes> for RejectedReply {
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for RejectedReply {
     type Error = Error;
 
-    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::bytes_ext::BytesReaderExt;
+
         let reply = match v.try_u32()? {
             REJECTED_RPC_MISMATCH => Self::RpcVersionMismatch {
                 low: v.try_u32()?,
@@ -210,10 +212,13 @@ impl AuthError {
     }
 }
 
-impl TryFrom<Bytes> for AuthError {
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for AuthError {
     type Error = Error;
 
-    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::bytes_ext::BytesReaderExt;
+
         let reply = match v.try_u32()? {
             AUTH_ERROR_SUCCESS => Self::Success,
             AUTH_ERROR_BADCRED => Self::BadCredentials,

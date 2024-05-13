@@ -4,9 +4,8 @@ use std::{
 };
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use bytes::{Buf, Bytes};
 
-use crate::{auth::AuthFlavor, bytes_ext::BytesReaderExt, Error};
+use crate::{auth::AuthFlavor, Error};
 
 const RPC_VERSION: u32 = 2;
 
@@ -168,10 +167,13 @@ impl<'a> TryFrom<&'a [u8]> for CallBody<&'a [u8], &'a [u8]> {
     }
 }
 
-impl TryFrom<Bytes> for CallBody<Bytes, Bytes> {
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for CallBody<crate::Bytes, crate::Bytes> {
     type Error = Error;
 
-    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::{bytes_ext::BytesReaderExt, Buf};
+
         let rpc_version = v.try_u32()?;
         if rpc_version != RPC_VERSION {
             return Err(Error::InvalidRpcVersion(rpc_version));

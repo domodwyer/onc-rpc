@@ -1,14 +1,12 @@
 use std::{
-    convert::TryFrom,
     io::{Cursor, Write},
     iter::FromIterator,
     ops::Deref,
 };
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use bytes::Bytes;
 
-use crate::{bytes_ext::BytesReaderExt, read_slice_bytes, Error};
+use crate::{read_slice_bytes, Error};
 
 const MAX_GIDS: usize = 16;
 
@@ -238,10 +236,13 @@ where
     }
 }
 
-impl TryFrom<Bytes> for AuthUnixParams<Bytes> {
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for AuthUnixParams<crate::Bytes> {
     type Error = Error;
 
-    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::bytes_ext::BytesReaderExt;
+
         let stamp = v.try_u32()?;
 
         let name = v.try_array(16)?;
@@ -268,6 +269,9 @@ impl TryFrom<Bytes> for AuthUnixParams<Bytes> {
 #[cfg(test)]
 mod tests {
     use hex_literal::hex;
+
+    #[cfg(feature = "bytes")]
+    use crate::Bytes;
 
     use super::*;
 
@@ -366,6 +370,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "bytes")]
     fn test_deserialise_bytes() {
         #[rustfmt::skip]
         // Known good wire value trimmed of flavor + length bytes.
@@ -421,6 +426,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "bytes")]
     fn test_empty_bytes() {
         // Known good wire value trimmed of flavor + length bytes.
         //

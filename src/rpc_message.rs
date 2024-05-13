@@ -7,9 +7,8 @@ use std::{
 };
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use bytes::{Buf, Bytes};
 
-use crate::{bytes_ext::BytesReaderExt, reply::ReplyBody, CallBody, Error};
+use crate::{reply::ReplyBody, CallBody, Error};
 
 const MSG_HEADER_LEN: usize = 4;
 const LAST_FRAGMENT_BIT: u32 = 1 << 31;
@@ -78,10 +77,13 @@ where
     }
 }
 
-impl TryFrom<Bytes> for MessageType<Bytes, Bytes> {
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for MessageType<crate::Bytes, crate::Bytes> {
     type Error = Error;
 
-    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::bytes_ext::BytesReaderExt;
+
         match v.try_u32()? {
             MESSAGE_TYPE_CALL => Ok(Self::Call(CallBody::try_from(v)?)),
             MESSAGE_TYPE_REPLY => Ok(Self::Reply(ReplyBody::try_from(v)?)),
@@ -262,10 +264,13 @@ impl<'a> TryFrom<&'a [u8]> for RpcMessage<&'a [u8], &'a [u8]> {
     }
 }
 
-impl TryFrom<Bytes> for RpcMessage<Bytes, Bytes> {
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for RpcMessage<crate::Bytes, crate::Bytes> {
     type Error = Error;
 
-    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::{bytes_ext::BytesReaderExt, Buf};
+
         let original_buffer_len = v.len();
 
         // Read the message length from the header, and check v contains exactly
@@ -377,6 +382,9 @@ mod tests {
 
     use hex_literal::hex;
     use proptest::{option::of, prelude::*, sample::SizeRange};
+
+    #[cfg(feature = "bytes")]
+    use crate::Bytes;
 
     use super::*;
     use crate::{
@@ -567,6 +575,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "bytes")]
     fn test_rpcmessage_auth_unix_bytes() {
         // Frame 3: 354 bytes on wire (2832 bits), 354 bytes captured (2832 bits) on interface en0, id 0
         // Ethernet II, Src: Apple_47:f4:fb (f8:ff:c2:47:f4:fb), Dst: PcsCompu_76:48:20 (08:00:27:76:48:20)
@@ -865,6 +874,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "bytes")]
     fn test_rpcmessage_reply_bytes<'a>() {
         // Remote Procedure Call, Type:Reply XID:0x265ec0fd
         //     Fragment header: Last fragment, 72 bytes
@@ -938,6 +948,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "bytes")]
     fn test_fuzz_message_too_long_for_type_bytes<'a>() {
         const RAW: [u8; 39] = hex!(
             "800000232323232300000001000000000000000000000000000000010302

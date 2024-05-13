@@ -10,21 +10,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - name: Build
-      run: cargo build --verbose
+    - name: Build no default features
+      run: cargo build --verbose --no-default-features
+    - name: Build all features
+      run: cargo build --verbose --all-features
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --verbose --all-features
 
   fuzz-build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
     - name: Install cargo-fuzz
-      run: cargo install -f cargo-fuzz
+      run: cargo install -f cargo-fuzz --all-features
     - name: Install nightly
       run: rustup toolchain install nightly
     - name: Build
-      run: cargo +nightly fuzz build --verbose
+      run: cargo +nightly fuzz build --verbose --all-features
 
   clippy_check:
     runs-on: ubuntu-latest

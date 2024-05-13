@@ -30,9 +30,11 @@ pub use reply::*;
 
 pub mod auth;
 
+#[cfg(feature = "bytes")]
 mod bytes_ext;
 
 // Re-export the `bytes` crate for users, to minimise version mismatches.
+#[cfg(feature = "bytes")]
 pub use bytes::*;
 
 // Unused crate lint workaround for dev dependency.

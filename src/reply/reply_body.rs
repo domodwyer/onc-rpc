@@ -4,10 +4,9 @@ use std::{
 };
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use bytes::Bytes;
 
 use super::{AcceptedReply, RejectedReply};
-use crate::{bytes_ext::BytesReaderExt, Error};
+use crate::Error;
 
 const REPLY_ACCEPTED: u32 = 0;
 const REPLY_DENIED: u32 = 1;
@@ -83,10 +82,13 @@ impl<'a> TryFrom<&'a [u8]> for ReplyBody<&'a [u8], &'a [u8]> {
     }
 }
 
-impl TryFrom<Bytes> for ReplyBody<Bytes, Bytes> {
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for ReplyBody<crate::Bytes, crate::Bytes> {
     type Error = Error;
 
-    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::bytes_ext::BytesReaderExt;
+
         match v.try_u32()? {
             REPLY_ACCEPTED => Ok(Self::Accepted(AcceptedReply::try_from(v)?)),
             REPLY_DENIED => Ok(Self::Denied(RejectedReply::try_from(v)?)),

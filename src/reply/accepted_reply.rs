@@ -4,9 +4,8 @@ use std::{
 };
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use bytes::{Buf, Bytes};
 
-use crate::{auth::AuthFlavor, bytes_ext::BytesReaderExt, Error};
+use crate::{auth::AuthFlavor, Error};
 
 const REPLY_SUCCESS: u32 = 0;
 const REPLY_PROG_UNAVAIL: u32 = 1;
@@ -86,10 +85,13 @@ impl<'a> TryFrom<&'a [u8]> for AcceptedReply<&'a [u8], &'a [u8]> {
     }
 }
 
-impl TryFrom<Bytes> for AcceptedReply<Bytes, Bytes> {
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for AcceptedReply<crate::Bytes, crate::Bytes> {
     type Error = Error;
 
-    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::Buf;
+
         // Deserialise the auth flavor using a copy of v, and then advance the
         // pointer in v.
         let auth_verifier = AuthFlavor::try_from(v.clone())?;
@@ -234,10 +236,13 @@ impl<'a> TryFrom<&'a [u8]> for AcceptedStatus<&'a [u8]> {
     }
 }
 
-impl TryFrom<Bytes> for AcceptedStatus<Bytes> {
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for AcceptedStatus<crate::Bytes> {
     type Error = Error;
 
-    fn try_from(mut v: Bytes) -> Result<Self, Self::Error> {
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::bytes_ext::BytesReaderExt;
+
         let reply = match v.try_u32()? {
             REPLY_SUCCESS => Self::Success(v),
             REPLY_PROG_UNAVAIL => Self::ProgramUnavailable,

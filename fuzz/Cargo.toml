@@ -26,3 +26,8 @@ path = "fuzz_targets/parse_serialise.rs"
 [[bin]]
 name = "bytes"
 path = "fuzz_targets/bytes.rs"
+required-features = ["bytes"]
+
+[features]
+default = ["bytes"]
+bytes = ["onc-rpc/bytes"]
