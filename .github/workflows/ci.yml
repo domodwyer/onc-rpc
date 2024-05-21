@@ -28,9 +28,13 @@ jobs:
       run: cargo doc --${{matrix.feature_flags}} --document-private-items --no-deps
 
   fuzz-build:
+    strategy:
+      matrix:
+        feature_flags: ["no-default-features", "all-features"]
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+
+    - uses: actions/checkout@v4
 
     - name: Install cargo-fuzz
       run: cargo install -f cargo-fuzz --all-features
@@ -39,4 +43,4 @@ jobs:
       run: rustup toolchain install nightly
 
     - name: Build fuzz tests
-      run: cargo +nightly fuzz build --verbose --all-features
+      run: cargo +nightly fuzz build --${{matrix.feature_flags}} --verbose
