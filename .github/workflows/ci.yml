@@ -26,3 +26,17 @@ jobs:
 
     - name: docs
       run: cargo doc --${{matrix.feature_flags}} --document-private-items --no-deps
+
+  fuzz-build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install cargo-fuzz
+      run: cargo install -f cargo-fuzz --all-features
+
+    - name: Install nightly
+      run: rustup toolchain install nightly
+
+    - name: Build fuzz tests
+      run: cargo +nightly fuzz build --verbose --all-features
