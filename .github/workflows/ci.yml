@@ -1,0 +1,28 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        feature_flags: ["no-default-features", "all-features"]
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/checkout@v4
+
+    - name: fmt
+      run: cargo fmt --all -- --check
+
+    - name: build
+      run: cargo build --${{matrix.feature_flags}} --verbose
+
+    - name: test
+      run: cargo test --${{matrix.feature_flags}} --verbose
+
+    - name: clippy
+      run: cargo clippy --${{matrix.feature_flags}} -- -D warnings
+
+    - name: docs
+      run: cargo doc --${{matrix.feature_flags}} --document-private-items --no-deps
