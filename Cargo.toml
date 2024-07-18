@@ -15,7 +15,7 @@ keywords = ["onc", "rpc", "sun", "protocol", "xdr"]
 categories = ["network-programming", "encoding", "api-bindings"]
 
 [dependencies]
-thiserror = "1.0.62"
+thiserror = "1.0.63"
 byteorder = "1.5.0"
 bytes = { version = "1.6.1", optional = true }
 
