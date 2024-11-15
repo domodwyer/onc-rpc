@@ -102,6 +102,12 @@ impl<'a> AuthUnixParams<&'a [u8]> {
 
         // Read the string without copying
         let name = read_slice_bytes(r, name_len)?;
+        // proceed opaque data
+        // https://datatracker.ietf.org/doc/html/rfc1014#section-3.9
+        let fill_bytes = name_len % 4;
+        if fill_bytes > 0 {
+            r.set_position(r.position() + (4 - fill_bytes) as u64);
+        }
 
         // UID & GID
         let uid = r.read_u32::<BigEndian>()?;
@@ -168,6 +174,14 @@ where
         buf.write_u32::<BigEndian>(self.stamp)?;
         buf.write_u32::<BigEndian>(self.machine_name.as_ref().len() as u32)?;
         buf.write_all(self.machine_name.as_ref())?;
+        // https://datatracker.ietf.org/doc/html/rfc1014#section-3.9
+        // If n is not a multiple of four, then the n bytes are followed by
+        // enough (0 to 3) residual zero bytes, r, to make the total byte count
+        // a multiple of four.
+        let fill_bytes = self.machine_name.as_ref().len() % 4;
+        if fill_bytes > 0 {
+            buf.write_all(vec![0_u8; 4 - fill_bytes].as_slice())?;
+        }
         buf.write_u32::<BigEndian>(self.uid)?;
         buf.write_u32::<BigEndian>(self.gid)?;
 
@@ -226,8 +240,13 @@ where
         // uid, gid, stamp
         let mut l = std::mem::size_of::<u32>() * 3;
 
-        // machine_name length u32 + bytes
-        l += std::mem::size_of::<u32>() + self.machine_name.as_ref().len();
+        // machine_name length u32 + bytes (+ opaque fill bytes)
+        let mut len = self.machine_name.as_ref().len();
+        let fill_bytes = len % 4;
+        if fill_bytes > 0 {
+            len += 4 - fill_bytes;
+        }
+        l += std::mem::size_of::<u32>() + len;
 
         // gids length prefix u32 + values
         l += (self.gids.deref().len() + 1) * std::mem::size_of::<u32>();

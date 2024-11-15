@@ -226,6 +226,42 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_auth_unix_unaligned_machinename<'a>() {
+        #[rustfmt::skip]
+        // Credentials
+        //     Flavor: AUTH_UNIX (1)
+        //     Length: 36
+        //     Stamp: 0x00000000
+        //     Machine Name: LAPTOP-1QQBPDGM
+        //         length: 15
+        //         contents: LAPTOP-1QQBPDGM
+        //     UID: 0
+        //     GID: 0
+        //     Auxiliary GIDs (0)
+        const RAW: [u8; 44] = hex!(
+            "0000000100000024000000000000000f4c4150544f502d315151425044474d00000000000000000000000000"
+        );
+
+        let f: AuthFlavor<&'a [u8]> = RAW.as_ref().try_into().expect("failed to parse message");
+        assert_eq!(f.serialised_len(), 44);
+        assert_eq!(f.id(), AUTH_UNIX);
+        assert_eq!(f.associated_data_len(), 44 - 4 - 4);
+
+        let params = match f {
+            AuthFlavor::AuthUnix(ref p) => p,
+            _ => panic!("wrong auth"),
+        };
+
+        assert_eq!(params.uid(), 0);
+
+        let mut c = Cursor::new(Vec::new());
+        f.serialise_into(&mut c).expect("serialise failed");
+
+        let buf = c.into_inner();
+        assert_eq!(buf.as_slice(), RAW.as_ref());
+    }
+
+    #[test]
     fn test_auth_unix<'a>() {
         #[rustfmt::skip]
         // Credentials
