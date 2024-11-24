@@ -6,7 +6,7 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::{read_slice_bytes, Error};
+use crate::{Error, Opaque, SerializeOpaque};
 
 const MAX_GIDS: usize = 16;
 
@@ -80,7 +80,7 @@ where
     gids: Gids,
 }
 
-impl<'a> AuthUnixParams<&'a [u8]> {
+impl<'a> AuthUnixParams<Opaque<'a, &'a [u8]>> {
     /// Constructs a new `AuthUnixParams` by parsing the wire format read from
     /// `r`, validating it has read exactly `expected_len` number of bytes.
     ///
@@ -94,19 +94,10 @@ impl<'a> AuthUnixParams<&'a [u8]> {
         // Read the stamp
         let stamp = r.read_u32::<BigEndian>()?;
 
-        // Read the variable length name
-        let name_len = r.read_u32::<BigEndian>()?;
-        if name_len > 16 {
-            return Err(Error::InvalidLength);
-        }
-
         // Read the string without copying
-        let name = read_slice_bytes(r, name_len)?;
-        // proceed opaque data
-        // https://datatracker.ietf.org/doc/html/rfc1014#section-3.9
-        let fill_bytes = name_len % 4;
-        if fill_bytes > 0 {
-            r.set_position(r.position() + (4 - fill_bytes) as u64);
+        let name = Opaque::try_from(&mut *r)?;
+        if name.len() > 16 {
+            return Err(Error::InvalidLength);
         }
 
         // UID & GID
@@ -172,16 +163,8 @@ where
     /// position by [`AuthUnixParams::serialised_len()`] bytes.
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         buf.write_u32::<BigEndian>(self.stamp)?;
-        buf.write_u32::<BigEndian>(self.machine_name.as_ref().len() as u32)?;
-        buf.write_all(self.machine_name.as_ref())?;
-        // https://datatracker.ietf.org/doc/html/rfc1014#section-3.9
-        // If n is not a multiple of four, then the n bytes are followed by
-        // enough (0 to 3) residual zero bytes, r, to make the total byte count
-        // a multiple of four.
-        let fill_bytes = self.machine_name.as_ref().len() % 4;
-        if fill_bytes > 0 {
-            buf.write_all(vec![0_u8; 4 - fill_bytes].as_slice())?;
-        }
+        let opaque = Opaque::from(self.machine_name.as_ref());
+        opaque.serialise_into(&mut buf)?;
         buf.write_u32::<BigEndian>(self.uid)?;
         buf.write_u32::<BigEndian>(self.gid)?;
 
@@ -299,7 +282,7 @@ mod tests {
         let gids = [
             501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399,
         ];
-        let params = AuthUnixParams::new(0, b"".as_ref(), 501, 20, gids);
+        let params = AuthUnixParams::new(0, Opaque::from(b"".as_ref()), 501, 20, gids);
 
         let mut buf = Cursor::new(Vec::new());
         params
