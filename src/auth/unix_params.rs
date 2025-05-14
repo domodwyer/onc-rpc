@@ -9,6 +9,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use crate::{read_slice_bytes, Error};
 
 const MAX_GIDS: usize = 16;
+const MAX_MACHINE_NAME_LEN: u32 = 255;
 
 /// A variable length array of GID values with a maximum capacity of
 /// [`MAX_GIDS`].
@@ -96,7 +97,7 @@ impl<'a> AuthUnixParams<&'a [u8]> {
 
         // Read the variable length name
         let name_len = r.read_u32::<BigEndian>()?;
-        if name_len > 16 {
+        if name_len > MAX_MACHINE_NAME_LEN {
             return Err(Error::InvalidLength);
         }
 
@@ -466,7 +467,7 @@ mod tests {
     fn test_long_machine_name_panic() {
         AuthUnixParams::new(
             42,
-            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+            [1_u8; 256],
             42,
             42,
             None,
