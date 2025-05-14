@@ -465,13 +465,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_long_machine_name_panic() {
-        AuthUnixParams::new(
-            42,
-            [1_u8; 256],
-            42,
-            42,
-            None,
-        );
+        AuthUnixParams::new(42, [1_u8; 256], 42, 42, None);
     }
 
     #[test]
