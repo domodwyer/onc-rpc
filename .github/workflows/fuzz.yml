@@ -63,7 +63,6 @@ jobs:
         run: >
           cargo +nightly fuzz run $FUZZ_TARGET --
           -max_total_time=120
-          -max_len=1022
 
       - name: Upload crash
         uses: actions/upload-artifact@v4
