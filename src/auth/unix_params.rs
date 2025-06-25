@@ -100,9 +100,11 @@ impl<'a> AuthUnixParams<&'a [u8]> {
         if name_len > MAX_MACHINE_NAME_LEN {
             return Err(Error::InvalidLength);
         }
-
+        
+        let padding_len = (4 - name_len % 4) % 4;
         // Read the string without copying
         let name = read_slice_bytes(r, name_len)?;
+        let _padding = read_slice_bytes(r, padding_len);
 
         // UID & GID
         let uid = r.read_u32::<BigEndian>()?;
@@ -169,6 +171,9 @@ where
         buf.write_u32::<BigEndian>(self.stamp)?;
         buf.write_u32::<BigEndian>(self.machine_name.as_ref().len() as u32)?;
         buf.write_all(self.machine_name.as_ref())?;
+        let padding = (4 - self.machine_name().len() % 4) % 4;
+        const PADDING: [u8; 3] = [0; 3];
+        buf.write_all(&PADDING[..padding])?;
         buf.write_u32::<BigEndian>(self.uid)?;
         buf.write_u32::<BigEndian>(self.gid)?;
 
@@ -228,7 +233,9 @@ where
         let mut l = std::mem::size_of::<u32>() * 3;
 
         // machine_name length u32 + bytes
-        l += std::mem::size_of::<u32>() + self.machine_name.as_ref().len();
+        l += std::mem::size_of::<u32>() + (
+            (self.machine_name.as_ref().len() + 3) & !3
+        );// align to multiple of 4
 
         // gids length prefix u32 + values
         l += (self.gids.deref().len() + 1) * std::mem::size_of::<u32>();
