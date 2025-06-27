@@ -9,6 +9,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use crate::{Error, Opaque, SerializeOpaque};
 
 const MAX_GIDS: usize = 16;
+const MAX_MACHINE_NAME_LEN: u32 = 255;
 
 /// A variable length array of GID values with a maximum capacity of
 /// [`MAX_GIDS`].
@@ -96,7 +97,7 @@ impl<'a> AuthUnixParams<Opaque<&'a [u8]>> {
 
         // Read the string without copying
         let name = Opaque::try_from(&mut *r)?;
-        if name.len() > 16 {
+        if name.len() as u32 > MAX_MACHINE_NAME_LEN {
             return Err(Error::InvalidLength);
         }
 
@@ -464,13 +465,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_long_machine_name_panic() {
-        AuthUnixParams::new(
-            42,
-            Opaque::from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].as_slice()),
-            42,
-            42,
-            None,
-        );
+        AuthUnixParams::new(42, [1_u8; 256], 42, 42, None);
     }
 
     #[test]

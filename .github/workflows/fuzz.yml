@@ -1,0 +1,72 @@
+name: fuzz
+on:
+  workflow_call:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions: {}
+
+jobs:
+  # Run each fuzz target for 60s.
+  fuzz:
+    runs-on: ubuntu-latest
+    container:
+      image: rustlang/rust:nightly
+      env:
+        CARGO_HOME: "/cargo/"
+        FUZZ_TARGET: "${{ matrix.fuzz_target }}"
+    strategy:
+      matrix:
+        fuzz_target: ["bytes", "parse_serialise"]
+
+    steps:
+      - name: Ensure node is installed for act checkout
+        if: ${{ env.ACT }}
+        run: command -v node || (apt update && apt install -y nodejs zstd)
+
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Cache cargo dir
+        id: cargo-dir
+        uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-cargo-nightly-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-nightly
+          path: /cargo
+
+      - name: Install cargo-fuzz
+        if: steps.cargo-dir.outputs.cache-hit != 'true'
+        run: cargo install cargo-fuzz --all-features
+
+      - name: Cache corpus
+        id: cache-fuzz-corpus
+        uses: actions/cache@v4
+        with:
+          enableCrossOsArchive: true
+          key: fuzz-corpus-${{ matrix.fuzz_target }}
+          path: fuzz/corpus/${{ matrix.fuzz_target }}
+
+      - name: Cache fuzz target dir
+        id: target-dir
+        uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-fuzz-target-dir-${{ matrix.fuzz_target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-fuzz-target-dir-${{ matrix.fuzz_target }}
+          path: fuzz/target
+
+      - name: Run fuzzer
+        id: fuzz
+        run: >
+          cargo +nightly fuzz run $FUZZ_TARGET --
+          -max_total_time=120
+
+      - name: Upload crash
+        uses: actions/upload-artifact@v4
+        if: failure() && steps.fuzz.outcome == 'failure'
+        with:
+          name: fuzz-crash
+          path: fuzz/artifacts/${{ matrix.fuzz_target }}
