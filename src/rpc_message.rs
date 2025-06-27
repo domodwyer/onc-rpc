@@ -3,7 +3,7 @@
 
 use std::{
     convert::TryFrom,
-    io::{Cursor, Write},
+    io::{BufRead, Cursor, Write},
 };
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
@@ -31,7 +31,7 @@ where
     Reply(ReplyBody<T, P>),
 }
 
-impl<'a> MessageType<Opaque<'a, &'a [u8]>, &'a [u8]> {
+impl<'a> MessageType<Opaque<&'a [u8]>, &'a [u8]> {
     /// Constructs a new `MessageType` by parsing the wire format read from `r`.
     ///
     /// `from_cursor` advances the position of `r` to the end of the
@@ -104,7 +104,7 @@ where
     message_type: MessageType<T, P>,
 }
 
-impl<'a> RpcMessage<Opaque<'a, &'a [u8]>, &'a [u8]> {
+impl<'a> RpcMessage<Opaque<&'a [u8]>, &'a [u8]> {
     /// Deserialises a new [`RpcMessage`] from `buf`.
     ///
     /// Buf must contain exactly 1 message - if `buf` contains an incomplete
@@ -232,7 +232,7 @@ where
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for RpcMessage<Opaque<'a, &'a [u8]>, &'a [u8]> {
+impl<'a> TryFrom<&'a [u8]> for RpcMessage<Opaque<&'a [u8]>, &'a [u8]> {
     type Error = Error;
 
     /// Deserialises a new [`RpcMessage`] from `buf`.
@@ -436,7 +436,7 @@ mod tests {
         let auth = AuthFlavor::AuthNone(Some(Opaque::from(binding.as_slice())));
         let payload = [42, 42, 42, 42];
 
-        let _msg: RpcMessage<Opaque<'_, &[u8]>, &[u8; 4]> = RpcMessage::new(
+        let _msg: RpcMessage<Opaque<&[u8]>, &[u8; 4]> = RpcMessage::new(
             4242,
             MessageType::Call(CallBody::new(100000, 42, 13, auth.clone(), auth, &payload)),
         );
@@ -979,7 +979,7 @@ mod tests {
         let buf1 = [1; 8];
         let ioslice = IoSlice::new(&buf1);
 
-        let body = CallBody::<Opaque<'_, &[u8]>, _>::new(
+        let body = CallBody::<Opaque<&[u8]>, _>::new(
             1,
             2,
             3,
@@ -1008,7 +1008,8 @@ mod tests {
             uid in any::<u32>(),
             gid in any::<u32>(),
             gids in prop::collection::vec(any::<u32>(), 0..=16),
-        ) -> AuthUnixParams<Vec<u8>> {
+        ) -> AuthUnixParams<Opaque<Vec<u8>>> {
+            let machine_name = Opaque::from(machine_name);
             AuthUnixParams::new(
                 stamp,
                 machine_name,
@@ -1019,17 +1020,20 @@ mod tests {
         }
     }
 
-    fn arbitrary_auth_flavor() -> impl Strategy<Value = AuthFlavor<Opaque<'_, &[u8]>>> {
+    fn arbitrary_auth_flavor() -> impl Strategy<Value = AuthFlavor<Opaque<Vec<u8>>>> {
         prop_oneof![
             // AuthNone
-            of(arbitrary_bytes(0..=200)).prop_map(AuthFlavor::AuthNone),
+            of(arbitrary_bytes(0..=200))
+                .prop_map(|opt_data| AuthFlavor::AuthNone(opt_data.map(|data| Opaque::from(data)))),
             // AuthUnix
             arbitrary_unix_auth_params().prop_map(AuthFlavor::AuthUnix),
             // AuthShort
-            arbitrary_bytes(0..=200).prop_map(AuthFlavor::AuthShort),
+            arbitrary_bytes(0..=200).prop_map(|data| AuthFlavor::AuthShort(Opaque::from(data))),
             // Unknown
-            (any::<u32>(), arbitrary_bytes(0..=200))
-                .prop_map(|(id, data)| AuthFlavor::Unknown { id, data })
+            (any::<u32>(), arbitrary_bytes(0..=200)).prop_map(|(id, data)| AuthFlavor::Unknown {
+                id,
+                data: Opaque::from(data)
+            })
         ]
     }
 
@@ -1041,7 +1045,7 @@ mod tests {
             auth_credentials in arbitrary_auth_flavor(),
             auth_verifier in arbitrary_auth_flavor(),
             payload in arbitrary_bytes(OPAQUE_BYTE_SIZE),
-        ) -> CallBody<Vec<u8>, Vec<u8>> {
+        ) -> CallBody<Opaque<Vec<u8>>, Vec<u8>> {
             CallBody::new(
                 program,
                 program_version,
@@ -1069,7 +1073,7 @@ mod tests {
         fn arbitrary_accepted_reply()(
             auth_verifier in arbitrary_auth_flavor(),
             status in arbitrary_accepted_status(),
-        ) -> AcceptedReply<Vec<u8>, Vec<u8>> {
+        ) -> AcceptedReply<Opaque<Vec<u8>>, Vec<u8>> {
             AcceptedReply::new(
                 auth_verifier,
                 status
@@ -1098,14 +1102,14 @@ mod tests {
         ]
     }
 
-    fn arbitrary_reply_body() -> impl Strategy<Value = ReplyBody<Vec<u8>, Vec<u8>>> {
+    fn arbitrary_reply_body() -> impl Strategy<Value = ReplyBody<Opaque<Vec<u8>>, Vec<u8>>> {
         prop_oneof![
             arbitrary_accepted_reply().prop_map(ReplyBody::Accepted),
             arbitrary_rejected_reply().prop_map(ReplyBody::Denied),
         ]
     }
 
-    fn arbitrary_message_type() -> impl Strategy<Value = MessageType<Vec<u8>, Vec<u8>>> {
+    fn arbitrary_message_type() -> impl Strategy<Value = MessageType<Opaque<Vec<u8>>, Vec<u8>>> {
         prop_oneof![
             arbitrary_call_body().prop_map(MessageType::Call),
             arbitrary_reply_body().prop_map(MessageType::Reply),
@@ -1116,7 +1120,7 @@ mod tests {
         fn arbitrary_rpc_message()(
             xid in any::<u32>(),
             message_type in arbitrary_message_type(),
-        ) -> RpcMessage<Vec<u8>, Vec<u8>> {
+        ) -> RpcMessage<Opaque<Vec<u8>>, Vec<u8>> {
             RpcMessage::new(xid, message_type)
         }
     }

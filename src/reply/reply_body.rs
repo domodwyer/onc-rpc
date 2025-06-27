@@ -25,7 +25,7 @@ where
     Denied(RejectedReply),
 }
 
-impl<'a> ReplyBody<Opaque<'a, &'a [u8]>, &'a [u8]> {
+impl<'a> ReplyBody<Opaque<&'a [u8]>, &'a [u8]> {
     pub(crate) fn from_cursor(r: &mut Cursor<&'a [u8]>) -> Result<Self, Error> {
         match r.read_u32::<BigEndian>()? {
             REPLY_ACCEPTED => Ok(ReplyBody::Accepted(AcceptedReply::from_cursor(r)?)),
@@ -73,7 +73,7 @@ where
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for ReplyBody<Opaque<'a, &'a [u8]>, &'a [u8]> {
+impl<'a> TryFrom<&'a [u8]> for ReplyBody<Opaque<&'a [u8]>, &'a [u8]> {
     type Error = Error;
 
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
@@ -111,7 +111,7 @@ mod tests {
         let auth = AuthFlavor::AuthNone(Some(Opaque::from(binding.as_slice())));
         let payload = [42, 42, 42, 42];
 
-        let _reply: ReplyBody<Opaque<'_, &[u8]>, [u8; 4]> = ReplyBody::Accepted(
+        let _reply: ReplyBody<Opaque<&[u8]>, [u8; 4]> = ReplyBody::Accepted(
             AcceptedReply::new(auth, crate::AcceptedStatus::Success(payload)),
         );
     }

@@ -29,7 +29,7 @@ where
     payload: P,
 }
 
-impl<'a> CallBody<Opaque<'a, &'a [u8]>, &'a [u8]> {
+impl<'a> CallBody<Opaque<&'a [u8]>, &'a [u8]> {
     /// Constructs a new `CallBody` by parsing the wire format read from `r`.
     ///
     /// `from_cursor` advances the position of `r` to the end of the `CallBody`
@@ -158,7 +158,7 @@ where
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for CallBody<Opaque<'a, &'a [u8]>, &'a [u8]> {
+impl<'a> TryFrom<&'a [u8]> for CallBody<Opaque<&'a [u8]>, &'a [u8]> {
     type Error = Error;
 
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
@@ -214,7 +214,7 @@ mod tests {
         let auth = AuthFlavor::AuthNone(Some(Opaque::from(binding.as_slice())));
         let payload = [42, 42, 42, 42];
 
-        let _call: CallBody<Opaque<'_, &[u8]>, &[u8; 4]> =
+        let _call: CallBody<Opaque<&[u8]>, &[u8; 4]> =
             CallBody::new(100000, 42, 13, auth.clone(), auth, &payload);
     }
 }

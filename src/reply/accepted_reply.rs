@@ -26,7 +26,7 @@ where
     status: AcceptedStatus<P>,
 }
 
-impl<'a> AcceptedReply<Opaque<'a, &'a [u8]>, &'a [u8]> {
+impl<'a> AcceptedReply<Opaque<&'a [u8]>, &'a [u8]> {
     /// Constructs a new `AcceptedReply` by parsing the wire format read from
     /// `r`.
     ///
@@ -76,7 +76,7 @@ where
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for AcceptedReply<Opaque<'a, &'a [u8]>, &'a [u8]> {
+impl<'a> TryFrom<&'a [u8]> for AcceptedReply<Opaque<&'a [u8]>, &'a [u8]> {
     type Error = Error;
 
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
@@ -272,7 +272,7 @@ mod tests {
         let auth = AuthFlavor::AuthNone(Some(Opaque::from(binding.as_slice())));
         let payload = [42, 42, 42, 42];
 
-        let _reply: AcceptedReply<Opaque<'_, &[u8]>, [u8; 4]> =
+        let _reply: AcceptedReply<Opaque<&[u8]>, [u8; 4]> =
             AcceptedReply::new(auth, AcceptedStatus::Success(payload));
     }
 }

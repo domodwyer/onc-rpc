@@ -10,19 +10,18 @@ use crate::Error;
 // Opaque is a Variable-length Array that holds an uninterpreted byte array
 //https://datatracker.ietf.org/doc/html/rfc1014#section-3.12
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Opaque<'a, T>
+pub struct Opaque<T>
 where
     T: AsRef<[u8]>,
 {
     body: T,
-    phantom: PhantomData<&'a T>,
 }
 
-impl<'a> TryFrom<&mut Cursor<&'a [u8]>> for Opaque<'a, &'a [u8]> {
+impl<'a> TryFrom<&mut Cursor<&'a [u8]>> for Opaque<&'a [u8]> {
     type Error = Error;
 
     /// Deserialises a new [`Opaque`] from `cursor`.
-    fn try_from(c: &mut Cursor<&'a [u8]>) -> Result<Opaque<'a, &'a [u8]>, Self::Error> {
+    fn try_from(c: &mut Cursor<&'a [u8]>) -> Result<Opaque<&'a [u8]>, Self::Error> {
         let len = c.read_u32::<BigEndian>()?;
         let data = *c.get_ref();
         let start = c.position() as usize;
@@ -32,19 +31,58 @@ impl<'a> TryFrom<&mut Cursor<&'a [u8]>> for Opaque<'a, &'a [u8]> {
         c.set_position(padded_end as u64);
         Ok(Opaque {
             body: &data[start..end],
-            phantom: PhantomData,
         })
     }
 }
 
-impl<'a, T> Opaque<'a, T>
+impl<'a> Opaque<&'a [u8]> {
+    /// Reads the body of an `Opaque` value from the given `r`,
+    /// assuming the length header has already been consumed.
+    ///
+    /// This function reads exactly `expected_len` bytes of actual data,
+    /// and advances the `r` past any necessary padding to maintain
+    /// 4-byte alignment (as per XDR format).
+    /// # Arguments
+    ///
+    /// * `r` - A cursor positioned at the start of the opaque data (after the length field).
+    /// * `expected_len` - The length of the opaque data to read, previously parsed from the wire.
+    ///
+    /// # Returns
+    ///
+    /// An `Opaque` containing the parsed data.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if fewer than `expected_len` bytes can be read,
+    /// or if the reader cannot be advanced past the padding.
+    pub fn read_body(r: &mut Cursor<&'a [u8]>, expected_len: u32) -> Result<Self, Error> {
+        let start_pos = r.position() as usize;
+        let end_pos = start_pos + expected_len as usize;
+        let data = *r.get_ref();
+        let padded_end = pad_length(expected_len) + end_pos as u32;
+
+        let total_len = r.get_ref().len();
+
+        // If there is not enough data to advances, this function failed
+        if total_len < padded_end as usize {
+            return Err(Error::InvalidAuthData);
+        }
+
+        r.set_position(padded_end as u64);
+
+        Ok(Opaque {
+            body: &data[start_pos..end_pos],
+        })
+    }
+}
+
+impl<T> Opaque<T>
 where
     T: AsRef<[u8]> + Sized,
 {
-    pub fn from(data: T) -> Opaque<'a, T> {
+    pub fn from(data: T) -> Opaque<T> {
         Opaque {
             body: data,
-            phantom: PhantomData,
         }
     }
 
@@ -53,7 +91,7 @@ where
     }
 }
 
-impl<'a, T> AsRef<[u8]> for Opaque<'a, T>
+impl<T> AsRef<[u8]> for Opaque<T>
 where
     T: AsRef<[u8]> + Sized,
 {
@@ -68,30 +106,49 @@ pub trait SerializeOpaque {
     fn serialised_len(&self) -> u32;
 }
 
-impl<'a, T> SerializeOpaque for Opaque<'a, T>
-where
-    T: AsRef<[u8]> + Sized,
+impl<T> SerializeOpaque for T
+where T: AsRef<[u8]>
 {
-    /// Serialises this `Opaque` into `buf`, advancing the cursor position by
-    /// [`Opaque::serialised_len()`] bytes.
     fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error> {
-        let len = self.body.as_ref().len() as u32;
-        buf.write_u32::<BigEndian>(len)?;
-
-        let _ = buf.write_all(self.body.as_ref());
-        let fill_bytes = pad_length(len);
-        if fill_bytes > 0 {
-            buf.write_all(vec![0_u8; fill_bytes as usize].as_slice())?;
-        }
-        Ok(())
+            let len = self.as_ref().len() as u32;
+            let _ = buf.write_all(self.as_ref());
+            let fill_bytes = pad_length(len) as usize;
+            const PADDING: [u8; 3] = [0; 3];
+            if fill_bytes > 0 {
+                buf.write_all(&PADDING[..fill_bytes])?;
+            }
+            Ok(())
     }
-
-    /// Returns the on-wire length of this opaque data once serialised.
     fn serialised_len(&self) -> u32 {
-        let len = self.body.as_ref().len() as u32;
+        let len = self.as_ref().len() as u32;
         len + pad_length(len)
     }
 }
+
+// impl<'a, T> SerializeOpaque for Opaque<'a, T>
+// where
+//     T: AsRef<[u8]> + Sized,
+// {
+//     /// Serialises this `Opaque` into `buf`, advancing the cursor position by
+//     /// [`Opaque::serialised_len()`] bytes.
+//     fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error> {
+//         let len = self.body.as_ref().len() as u32;
+//         buf.write_u32::<BigEndian>(len)?;
+
+//         let _ = buf.write_all(self.body.as_ref());
+//         let fill_bytes = pad_length(len);
+//         if fill_bytes > 0 {
+//             buf.write_all(vec![0_u8; fill_bytes as usize].as_slice())?;
+//         }
+//         Ok(())
+//     }
+
+//     /// Returns the on-wire length of this opaque data once serialised.
+//     fn serialised_len(&self) -> u32 {
+//         let len = self.body.as_ref().len() as u32;
+//         len + pad_length(len)
+//     }
+// }
 
 // https://datatracker.ietf.org/doc/html/rfc1014#section-4
 // (5) Why must variable-length data be padded with zeros?
@@ -110,6 +167,7 @@ fn pad_length(l: u32) -> u32 {
 mod tests {
     use std::{io::Cursor, marker::PhantomData};
 
+    use byteorder::{BigEndian, WriteBytesExt};
     use hex_literal::hex;
 
     use crate::SerializeOpaque;
@@ -137,9 +195,9 @@ mod tests {
         // 2. erialize
         let myopaque = Opaque {
             body: mydata,
-            phantom: PhantomData,
         };
         let mut buf: Cursor<Vec<u8>> = Cursor::new(Vec::<u8>::new());
+        buf.write_u32::<BigEndian>(myopaque.len() as u32).unwrap();
         let _ = myopaque.serialise_into(&mut buf);
         assert_eq!(buf.get_ref().len(), 20);
         // assert input == output
@@ -167,9 +225,9 @@ mod tests {
         // 2. serialize
         let myopaque = Opaque {
             body: mydata,
-            phantom: PhantomData,
         };
         let mut buf: Cursor<Vec<u8>> = Cursor::new(Vec::<u8>::new());
+        buf.write_u32::<BigEndian>(myopaque.len() as u32).unwrap();
         let _ = myopaque.serialise_into(&mut buf);
         assert_eq!(buf.get_ref().len(), 16);
         // assert input == output
