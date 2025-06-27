@@ -5,7 +5,7 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::{auth::AuthFlavor, Error};
+use crate::{auth::AuthFlavor, Error, Opaque, SerializeOpaque};
 
 const REPLY_SUCCESS: u32 = 0;
 const REPLY_PROG_UNAVAIL: u32 = 1;
@@ -19,14 +19,14 @@ const REPLY_SYSTEM_ERR: u32 = 5;
 #[derive(Debug, PartialEq)]
 pub struct AcceptedReply<T, P>
 where
-    T: AsRef<[u8]>,
+    T: AsRef<[u8]> + SerializeOpaque,
     P: AsRef<[u8]>,
 {
     auth_verifier: AuthFlavor<T>,
     status: AcceptedStatus<P>,
 }
 
-impl<'a> AcceptedReply<&'a [u8], &'a [u8]> {
+impl<'a> AcceptedReply<Opaque<&'a [u8]>, &'a [u8]> {
     /// Constructs a new `AcceptedReply` by parsing the wire format read from
     /// `r`.
     ///
@@ -42,7 +42,7 @@ impl<'a> AcceptedReply<&'a [u8], &'a [u8]> {
 
 impl<T, P> AcceptedReply<T, P>
 where
-    T: AsRef<[u8]>,
+    T: AsRef<[u8]> + SerializeOpaque,
     P: AsRef<[u8]>,
 {
     /// Constructs a new `AcceptedReply` with the specified [`AcceptedStatus`].
@@ -76,7 +76,7 @@ where
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for AcceptedReply<&'a [u8], &'a [u8]> {
+impl<'a> TryFrom<&'a [u8]> for AcceptedReply<Opaque<&'a [u8]>, &'a [u8]> {
     type Error = Error;
 
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
@@ -86,7 +86,7 @@ impl<'a> TryFrom<&'a [u8]> for AcceptedReply<&'a [u8], &'a [u8]> {
 }
 
 #[cfg(feature = "bytes")]
-impl TryFrom<crate::Bytes> for AcceptedReply<crate::Bytes, crate::Bytes> {
+impl TryFrom<crate::Bytes> for AcceptedReply<Opaque<crate::Bytes>, crate::Bytes> {
     type Error = Error;
 
     fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
@@ -268,10 +268,11 @@ mod tests {
     // auth buffer.
     #[test]
     fn test_differing_payload_type() {
-        let auth = AuthFlavor::AuthNone(Some(vec![42]));
+        let binding = vec![42];
+        let auth = AuthFlavor::AuthNone(Some(Opaque::from(binding.as_slice())));
         let payload = [42, 42, 42, 42];
 
-        let _reply: AcceptedReply<Vec<u8>, [u8; 4]> =
+        let _reply: AcceptedReply<Opaque<&[u8]>, [u8; 4]> =
             AcceptedReply::new(auth, AcceptedStatus::Success(payload));
     }
 }

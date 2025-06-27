@@ -5,7 +5,7 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::{auth::AuthFlavor, Error};
+use crate::{auth::AuthFlavor, Error, Opaque, SerializeOpaque};
 
 const RPC_VERSION: u32 = 2;
 
@@ -17,7 +17,7 @@ const RPC_VERSION: u32 = 2;
 #[derive(Debug, PartialEq)]
 pub struct CallBody<T, P>
 where
-    T: AsRef<[u8]>,
+    T: AsRef<[u8]> + SerializeOpaque,
 {
     program: u32,
     program_version: u32,
@@ -29,7 +29,7 @@ where
     payload: P,
 }
 
-impl<'a> CallBody<&'a [u8], &'a [u8]> {
+impl<'a> CallBody<Opaque<&'a [u8]>, &'a [u8]> {
     /// Constructs a new `CallBody` by parsing the wire format read from `r`.
     ///
     /// `from_cursor` advances the position of `r` to the end of the `CallBody`
@@ -64,7 +64,7 @@ impl<'a> CallBody<&'a [u8], &'a [u8]> {
 
 impl<T, P> CallBody<T, P>
 where
-    T: AsRef<[u8]>,
+    T: AsRef<[u8]> + SerializeOpaque,
     P: AsRef<[u8]>,
 {
     /// Construct a new RPC invocation request.
@@ -158,7 +158,7 @@ where
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for CallBody<&'a [u8], &'a [u8]> {
+impl<'a> TryFrom<&'a [u8]> for CallBody<Opaque<&'a [u8]>, &'a [u8]> {
     type Error = Error;
 
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
@@ -168,7 +168,7 @@ impl<'a> TryFrom<&'a [u8]> for CallBody<&'a [u8], &'a [u8]> {
 }
 
 #[cfg(feature = "bytes")]
-impl TryFrom<crate::Bytes> for CallBody<crate::Bytes, crate::Bytes> {
+impl TryFrom<crate::Bytes> for CallBody<Opaque<crate::Bytes>, crate::Bytes> {
     type Error = Error;
 
     fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
@@ -210,10 +210,11 @@ mod tests {
     // auth buffer.
     #[test]
     fn test_differing_payload_type() {
-        let auth = AuthFlavor::AuthNone(Some(vec![42]));
+        let binding = vec![42];
+        let auth = AuthFlavor::AuthNone(Some(Opaque::from(binding.as_slice())));
         let payload = [42, 42, 42, 42];
 
-        let _call: CallBody<Vec<u8>, &[u8; 4]> =
+        let _call: CallBody<Opaque<&[u8]>, &[u8; 4]> =
             CallBody::new(100000, 42, 13, auth.clone(), auth, &payload);
     }
 }
