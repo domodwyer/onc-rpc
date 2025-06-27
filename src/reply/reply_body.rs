@@ -82,20 +82,20 @@ impl<'a> TryFrom<&'a [u8]> for ReplyBody<Opaque<&'a [u8]>, &'a [u8]> {
     }
 }
 
-// #[cfg(feature = "bytes")]
-// impl TryFrom<crate::Bytes> for ReplyBody<crate::Bytes, crate::Bytes> {
-//     type Error = Error;
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for ReplyBody<Opaque<crate::Bytes>, crate::Bytes> {
+    type Error = Error;
 
-//     fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
-//         use crate::bytes_ext::BytesReaderExt;
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::bytes_ext::BytesReaderExt;
 
-//         match v.try_u32()? {
-//             REPLY_ACCEPTED => Ok(Self::Accepted(AcceptedReply::try_from(v)?)),
-//             REPLY_DENIED => Ok(Self::Denied(RejectedReply::try_from(v)?)),
-//             v => Err(Error::InvalidReplyType(v)),
-//         }
-//     }
-// }
+        match v.try_u32()? {
+            REPLY_ACCEPTED => Ok(Self::Accepted(AcceptedReply::try_from(v)?)),
+            REPLY_DENIED => Ok(Self::Denied(RejectedReply::try_from(v)?)),
+            v => Err(Error::InvalidReplyType(v)),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

@@ -179,43 +179,43 @@ impl<'a> TryFrom<&'a [u8]> for AuthFlavor<Opaque<&'a [u8]>> {
     }
 }
 
-// #[cfg(feature = "bytes")]
-// impl TryFrom<crate::Bytes> for AuthFlavor<crate::Bytes> {
-//     type Error = Error;
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for AuthFlavor<Opaque<crate::Bytes>> {
+    type Error = Error;
 
-//     fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
-//         use crate::bytes_ext::BytesReaderExt;
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::bytes_ext::BytesReaderExt;
 
-//         let flavor = v.try_u32()?;
-//         let auth_data = v.try_array(200)?;
+        let flavor = v.try_u32()?;
+        let auth_data = v.try_array(200)?;
 
-//         let flavor = match flavor {
-//             AUTH_NONE if auth_data.is_empty() => Self::AuthNone(None),
-//             AUTH_NONE => Self::AuthNone(Some(auth_data)),
-//             AUTH_UNIX => {
-//                 // Prevent malformed messages from including trailing data in
-//                 // the AUTH_UNIX structure - the deserialised structure should
-//                 // fully consume the opaque data associated with the AUTH_UNIX
-//                 // variant.
-//                 let should_consume = auth_data.len();
-//                 let params = AuthUnixParams::try_from(auth_data)?;
-//                 if params.serialised_len() as usize != should_consume {
-//                     return Err(Error::InvalidAuthData);
-//                 }
-//                 Self::AuthUnix(params)
-//             }
-//             AUTH_SHORT => Self::AuthShort(auth_data),
-//             // 3 => AuthFlavor::AuthDH,
-//             // 6 => AuthFlavor::RpcSecGSS,
-//             id => Self::Unknown {
-//                 id,
-//                 data: auth_data,
-//             },
-//         };
+        let flavor = match flavor {
+            AUTH_NONE if auth_data.is_empty() => Self::AuthNone(None),
+            AUTH_NONE => Self::AuthNone(Some(Opaque::from(auth_data))),
+            AUTH_UNIX => {
+                // Prevent malformed messages from including trailing data in
+                // the AUTH_UNIX structure - the deserialised structure should
+                // fully consume the opaque data associated with the AUTH_UNIX
+                // variant.
+                let should_consume = auth_data.len();
+                let params = AuthUnixParams::try_from(auth_data)?;
+                if params.serialised_len() as usize != should_consume {
+                    return Err(Error::InvalidAuthData);
+                }
+                Self::AuthUnix(params)
+            }
+            AUTH_SHORT => Self::AuthShort(Opaque::from(auth_data)),
+            // 3 => AuthFlavor::AuthDH,
+            // 6 => AuthFlavor::RpcSecGSS,
+            id => Self::Unknown {
+                id,
+                data: Opaque::from(auth_data),
+            },
+        };
 
-//         Ok(flavor)
-//     }
-// }
+        Ok(flavor)
+    }
+}
 
 #[cfg(test)]
 mod tests {

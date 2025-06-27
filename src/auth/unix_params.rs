@@ -237,35 +237,35 @@ where
     }
 }
 
-// #[cfg(feature = "bytes")]
-// impl TryFrom<crate::Bytes> for AuthUnixParams<crate::Bytes> {
-//     type Error = Error;
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for AuthUnixParams<Opaque<crate::Bytes>> {
+    type Error = Error;
 
-//     fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
-//         use crate::bytes_ext::BytesReaderExt;
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::bytes_ext::BytesReaderExt;
 
-//         let stamp = v.try_u32()?;
+        let stamp = v.try_u32()?;
 
-//         let name = v.try_array(16)?;
-//         let uid = v.try_u32()?;
-//         let gid = v.try_u32()?;
+        let name = v.try_array(16)?;
+        let uid = v.try_u32()?;
+        let gid = v.try_u32()?;
 
-//         let gids_count = v.try_u32()? as usize;
-//         let gids = match gids_count {
-//             0 => Gids::default(),
-//             c if c <= 16 => (0..c).map(|_| v.try_u32()).collect::<Result<Gids, _>>()?,
-//             _ => return Err(Error::InvalidAuthData),
-//         };
+        let gids_count = v.try_u32()? as usize;
+        let gids = match gids_count {
+            0 => Gids::default(),
+            c if c <= 16 => (0..c).map(|_| v.try_u32()).collect::<Result<Gids, _>>()?,
+            _ => return Err(Error::InvalidAuthData),
+        };
 
-//         Ok(Self {
-//             stamp,
-//             machine_name: name,
-//             uid,
-//             gid,
-//             gids,
-//         })
-//     }
-// }
+        Ok(Self {
+            stamp,
+            machine_name: Opaque::from(name),
+            uid,
+            gid,
+            gids,
+        })
+    }
+}
 
 #[cfg(test)]
 mod tests {

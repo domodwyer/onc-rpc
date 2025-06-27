@@ -167,40 +167,40 @@ impl<'a> TryFrom<&'a [u8]> for CallBody<Opaque<&'a [u8]>, &'a [u8]> {
     }
 }
 
-// #[cfg(feature = "bytes")]
-// impl TryFrom<crate::Bytes> for CallBody<crate::Bytes, crate::Bytes> {
-//     type Error = Error;
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for CallBody<Opaque<crate::Bytes>, crate::Bytes> {
+    type Error = Error;
 
-//     fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
-//         use crate::{bytes_ext::BytesReaderExt, Buf};
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::{bytes_ext::BytesReaderExt, Buf};
 
-//         let rpc_version = v.try_u32()?;
-//         if rpc_version != RPC_VERSION {
-//             return Err(Error::InvalidRpcVersion(rpc_version));
-//         }
+        let rpc_version = v.try_u32()?;
+        if rpc_version != RPC_VERSION {
+            return Err(Error::InvalidRpcVersion(rpc_version));
+        }
 
-//         let program = v.try_u32()?;
-//         let program_version = v.try_u32()?;
-//         let procedure = v.try_u32()?;
+        let program = v.try_u32()?;
+        let program_version = v.try_u32()?;
+        let procedure = v.try_u32()?;
 
-//         // Deserialise the auth flavor using a copy of v, and then advance the
-//         // pointer in v.
-//         let auth_credentials = AuthFlavor::try_from(v.clone())?;
-//         v.advance(auth_credentials.serialised_len() as usize);
+        // Deserialise the auth flavor using a copy of v, and then advance the
+        // pointer in v.
+        let auth_credentials = AuthFlavor::try_from(v.clone())?;
+        v.advance(auth_credentials.serialised_len() as usize);
 
-//         let auth_verifier = AuthFlavor::try_from(v.clone())?;
-//         v.advance(auth_verifier.serialised_len() as usize);
+        let auth_verifier = AuthFlavor::try_from(v.clone())?;
+        v.advance(auth_verifier.serialised_len() as usize);
 
-//         Ok(Self {
-//             program,
-//             program_version,
-//             procedure,
-//             auth_credentials,
-//             auth_verifier,
-//             payload: v,
-//         })
-//     }
-// }
+        Ok(Self {
+            program,
+            program_version,
+            procedure,
+            auth_credentials,
+            auth_verifier,
+            payload: v,
+        })
+    }
+}
 
 #[cfg(test)]
 mod tests {

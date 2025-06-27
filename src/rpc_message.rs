@@ -77,20 +77,20 @@ where
     }
 }
 
-// #[cfg(feature = "bytes")]
-// impl TryFrom<crate::Bytes> for MessageType<crate::Bytes, crate::Bytes> {
-//     type Error = Error;
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for MessageType<Opaque<crate::Bytes>, crate::Bytes> {
+    type Error = Error;
 
-//     fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
-//         use crate::bytes_ext::BytesReaderExt;
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::bytes_ext::BytesReaderExt;
 
-//         match v.try_u32()? {
-//             MESSAGE_TYPE_CALL => Ok(Self::Call(CallBody::try_from(v)?)),
-//             MESSAGE_TYPE_REPLY => Ok(Self::Reply(ReplyBody::try_from(v)?)),
-//             v => Err(Error::InvalidMessageType(v)),
-//         }
-//     }
-// }
+        match v.try_u32()? {
+            MESSAGE_TYPE_CALL => Ok(Self::Call(CallBody::try_from(v)?)),
+            MESSAGE_TYPE_REPLY => Ok(Self::Reply(ReplyBody::try_from(v)?)),
+            v => Err(Error::InvalidMessageType(v)),
+        }
+    }
+}
 
 /// An Open Network Computing RPC message, generic over a source of bytes (`T`)
 /// and a payload buffer (`P`).
@@ -232,6 +232,7 @@ where
     }
 }
 
+
 impl<'a> TryFrom<&'a [u8]> for RpcMessage<Opaque<&'a [u8]>, &'a [u8]> {
     type Error = Error;
 
@@ -270,48 +271,48 @@ impl<'a> TryFrom<&'a [u8]> for RpcMessage<Opaque<&'a [u8]>, &'a [u8]> {
     }
 }
 
-// #[cfg(feature = "bytes")]
-// impl TryFrom<crate::Bytes> for RpcMessage<crate::Bytes, crate::Bytes> {
-//     type Error = Error;
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for RpcMessage<Opaque<crate::Bytes>, crate::Bytes> {
+    type Error = Error;
 
-//     fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
-//         use crate::{bytes_ext::BytesReaderExt, Buf};
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::{bytes_ext::BytesReaderExt, Buf};
 
-//         let original_buffer_len = v.len();
+        let original_buffer_len = v.len();
 
-//         // Read the message length from the header, and check v contains exactly
-//         // one message.
-//         let want = expected_message_len(v.as_ref())? as usize;
-//         if original_buffer_len != want {
-//             return Err(Error::IncompleteMessage {
-//                 buffer_len: original_buffer_len,
-//                 expected: want,
-//             });
-//         }
+        // Read the message length from the header, and check v contains exactly
+        // one message.
+        let want = expected_message_len(v.as_ref())? as usize;
+        if original_buffer_len != want {
+            return Err(Error::IncompleteMessage {
+                buffer_len: original_buffer_len,
+                expected: want,
+            });
+        }
 
-//         // Advance past the header bytes
-//         v.advance(MSG_HEADER_LEN);
+        // Advance past the header bytes
+        v.advance(MSG_HEADER_LEN);
 
-//         let xid = v.try_u32()?;
-//         let message_type = MessageType::try_from(v)?;
+        let xid = v.try_u32()?;
+        let message_type = MessageType::try_from(v)?;
 
-//         let msg = Self { xid, message_type };
+        let msg = Self { xid, message_type };
 
-//         // Detect messages that have more data than what was deserialised.
-//         //
-//         // This can occur if a message has a valid header length value for data,
-//         // but data contains more bytes than expected for this message type.
-//         let parsed_len = msg.serialised_len() as usize;
-//         if parsed_len != original_buffer_len {
-//             return Err(Error::IncompleteMessage {
-//                 buffer_len: original_buffer_len,
-//                 expected: parsed_len,
-//             });
-//         }
+        // Detect messages that have more data than what was deserialised.
+        //
+        // This can occur if a message has a valid header length value for data,
+        // but data contains more bytes than expected for this message type.
+        let parsed_len = msg.serialised_len() as usize;
+        if parsed_len != original_buffer_len {
+            return Err(Error::IncompleteMessage {
+                buffer_len: original_buffer_len,
+                expected: parsed_len,
+            });
+        }
 
-//         Ok(msg)
-//     }
-// }
+        Ok(msg)
+    }
+}
 
 /// Strip the 4 byte header from data, returning the rest of the message.
 ///

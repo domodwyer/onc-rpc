@@ -85,24 +85,24 @@ impl<'a> TryFrom<&'a [u8]> for AcceptedReply<Opaque<&'a [u8]>, &'a [u8]> {
     }
 }
 
-// #[cfg(feature = "bytes")]
-// impl TryFrom<crate::Bytes> for AcceptedReply<crate::Bytes, crate::Bytes> {
-//     type Error = Error;
+#[cfg(feature = "bytes")]
+impl TryFrom<crate::Bytes> for AcceptedReply<Opaque<crate::Bytes>, crate::Bytes> {
+    type Error = Error;
 
-//     fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
-//         use crate::Buf;
+    fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
+        use crate::Buf;
 
-//         // Deserialise the auth flavor using a copy of v, and then advance the
-//         // pointer in v.
-//         let auth_verifier = AuthFlavor::try_from(v.clone())?;
-//         v.advance(auth_verifier.serialised_len() as usize);
+        // Deserialise the auth flavor using a copy of v, and then advance the
+        // pointer in v.
+        let auth_verifier = AuthFlavor::try_from(v.clone())?;
+        v.advance(auth_verifier.serialised_len() as usize);
 
-//         Ok(Self {
-//             auth_verifier,
-//             status: AcceptedStatus::try_from(v)?,
-//         })
-//     }
-// }
+        Ok(Self {
+            auth_verifier,
+            status: AcceptedStatus::try_from(v)?,
+        })
+    }
+}
 
 /// The response status code for a request that contains valid credentials.
 #[derive(Debug, PartialEq, Clone)]
