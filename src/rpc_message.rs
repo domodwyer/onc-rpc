@@ -3,12 +3,12 @@
 
 use std::{
     convert::TryFrom,
-    io::{BufRead, Cursor, Write},
+    io::{Cursor, Write},
 };
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::{reply::ReplyBody, CallBody, Error, Opaque, SerializeOpaque};
+use crate::{reply::ReplyBody, CallBody, Error};
 
 const MSG_HEADER_LEN: usize = 4;
 const LAST_FRAGMENT_BIT: u32 = 1 << 31;
@@ -22,7 +22,7 @@ const MESSAGE_TYPE_REPLY: u32 = 1;
 #[derive(Debug, PartialEq)]
 pub enum MessageType<T, P>
 where
-    T: AsRef<[u8]> + SerializeOpaque,
+    T: AsRef<[u8]>,
     P: AsRef<[u8]>,
 {
     /// This message is invoking an RPC.
@@ -31,7 +31,7 @@ where
     Reply(ReplyBody<T, P>),
 }
 
-impl<'a> MessageType<Opaque<&'a [u8]>, &'a [u8]> {
+impl<'a> MessageType<&'a [u8], &'a [u8]> {
     /// Constructs a new `MessageType` by parsing the wire format read from `r`.
     ///
     /// `from_cursor` advances the position of `r` to the end of the
@@ -47,7 +47,7 @@ impl<'a> MessageType<Opaque<&'a [u8]>, &'a [u8]> {
 
 impl<T, P> MessageType<T, P>
 where
-    T: AsRef<[u8]> + SerializeOpaque,
+    T: AsRef<[u8]>,
     P: AsRef<[u8]>,
 {
     /// Serialises this `MessageType` into `buf`, advancing the cursor position
@@ -78,7 +78,7 @@ where
 }
 
 #[cfg(feature = "bytes")]
-impl TryFrom<crate::Bytes> for MessageType<Opaque<crate::Bytes>, crate::Bytes> {
+impl TryFrom<crate::Bytes> for MessageType<crate::Bytes, crate::Bytes> {
     type Error = Error;
 
     fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
@@ -97,14 +97,14 @@ impl TryFrom<crate::Bytes> for MessageType<Opaque<crate::Bytes>, crate::Bytes> {
 #[derive(Debug, PartialEq)]
 pub struct RpcMessage<T, P>
 where
-    T: AsRef<[u8]> + SerializeOpaque,
+    T: AsRef<[u8]>,
     P: AsRef<[u8]>,
 {
     xid: u32,
     message_type: MessageType<T, P>,
 }
 
-impl<'a> RpcMessage<Opaque<&'a [u8]>, &'a [u8]> {
+impl<'a> RpcMessage<&'a [u8], &'a [u8]> {
     /// Deserialises a new [`RpcMessage`] from `buf`.
     ///
     /// Buf must contain exactly 1 message - if `buf` contains an incomplete
@@ -118,7 +118,7 @@ impl<'a> RpcMessage<Opaque<&'a [u8]>, &'a [u8]> {
 
 impl<T, P> RpcMessage<T, P>
 where
-    T: AsRef<[u8]> + SerializeOpaque,
+    T: AsRef<[u8]>,
     P: AsRef<[u8]>,
 {
     /// Construct a new `RpcMessage` with the specified transaction ID and
@@ -233,7 +233,7 @@ where
 }
 
 
-impl<'a> TryFrom<&'a [u8]> for RpcMessage<Opaque<&'a [u8]>, &'a [u8]> {
+impl<'a> TryFrom<&'a [u8]> for RpcMessage<&'a [u8], &'a [u8]> {
     type Error = Error;
 
     /// Deserialises a new [`RpcMessage`] from `buf`.
@@ -272,7 +272,7 @@ impl<'a> TryFrom<&'a [u8]> for RpcMessage<Opaque<&'a [u8]>, &'a [u8]> {
 }
 
 #[cfg(feature = "bytes")]
-impl TryFrom<crate::Bytes> for RpcMessage<Opaque<crate::Bytes>, crate::Bytes> {
+impl TryFrom<crate::Bytes> for RpcMessage<crate::Bytes, crate::Bytes> {
     type Error = Error;
 
     fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
@@ -369,6 +369,7 @@ pub fn expected_message_len(data: &[u8]) -> Result<u32, Error> {
 
 #[cfg(test)]
 mod tests {
+    use crate::Opaque;
     use std::ops::RangeInclusive;
 
     use hex_literal::hex;
@@ -437,7 +438,7 @@ mod tests {
         let auth = AuthFlavor::AuthNone(Some(Opaque::from(binding.as_slice())));
         let payload = [42, 42, 42, 42];
 
-        let _msg: RpcMessage<Opaque<&[u8]>, &[u8; 4]> = RpcMessage::new(
+        let _msg: RpcMessage<&[u8], &[u8; 4]> = RpcMessage::new(
             4242,
             MessageType::Call(CallBody::new(100000, 42, 13, auth.clone(), auth, &payload)),
         );
@@ -579,144 +580,144 @@ mod tests {
         assert_eq!(serialised.as_slice(), RAW.as_ref());
     }
 
-    // #[test]
-    // #[cfg(feature = "bytes")]
-    // fn test_rpcmessage_auth_unix_bytes() {
-    //     // Frame 3: 354 bytes on wire (2832 bits), 354 bytes captured (2832 bits) on interface en0, id 0
-    //     // Ethernet II, Src: Apple_47:f4:fb (f8:ff:c2:47:f4:fb), Dst: PcsCompu_76:48:20 (08:00:27:76:48:20)
-    //     // Internet Protocol Version 4, Src: client (192.168.1.188), Dst: server (192.168.1.189)
-    //     // Transmission Control Protocol, Src Port: 61162, Dst Port: 2049, Seq: 69, Ack: 29, Len: 288
-    //     // Remote Procedure Call, Type:Call XID:0x265ec0fd
-    //     //     Fragment header: Last fragment, 284 bytes
-    //     //         1... .... .... .... .... .... .... .... = Last Fragment: Yes
-    //     //         .000 0000 0000 0000 0000 0001 0001 1100 = Fragment Length: 284
-    //     //     XID: 0x265ec0fd (643743997)
-    //     //     Message Type: Call (0)
-    //     //     RPC Version: 2
-    //     //     Program: NFS (100003)
-    //     //     Program Version: 4
-    //     //     Procedure: COMPOUND (1)
-    //     //     [The reply to this request is in frame 4]
-    //     //     Credentials
-    //     //         Flavor: AUTH_UNIX (1)
-    //     //         Length: 84
+    #[test]
+    #[cfg(feature = "bytes")]
+    fn test_rpcmessage_auth_unix_bytes() {
+        // Frame 3: 354 bytes on wire (2832 bits), 354 bytes captured (2832 bits) on interface en0, id 0
+        // Ethernet II, Src: Apple_47:f4:fb (f8:ff:c2:47:f4:fb), Dst: PcsCompu_76:48:20 (08:00:27:76:48:20)
+        // Internet Protocol Version 4, Src: client (192.168.1.188), Dst: server (192.168.1.189)
+        // Transmission Control Protocol, Src Port: 61162, Dst Port: 2049, Seq: 69, Ack: 29, Len: 288
+        // Remote Procedure Call, Type:Call XID:0x265ec0fd
+        //     Fragment header: Last fragment, 284 bytes
+        //         1... .... .... .... .... .... .... .... = Last Fragment: Yes
+        //         .000 0000 0000 0000 0000 0001 0001 1100 = Fragment Length: 284
+        //     XID: 0x265ec0fd (643743997)
+        //     Message Type: Call (0)
+        //     RPC Version: 2
+        //     Program: NFS (100003)
+        //     Program Version: 4
+        //     Procedure: COMPOUND (1)
+        //     [The reply to this request is in frame 4]
+        //     Credentials
+        //         Flavor: AUTH_UNIX (1)
+        //         Length: 84
 
-    //     //         Stamp: 0x00000000
-    //     //         Machine Name: <EMPTY>
-    //     //             length: 0
-    //     //             contents: <EMPTY>
-    //     //         UID: 501
-    //     //         GID: 20
-    //     //         Auxiliary GIDs (16) [501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399]
-    //     //             GID: 501
-    //     //             GID: 12
-    //     //             GID: 20
-    //     //             GID: 61
-    //     //             GID: 79
-    //     //             GID: 80
-    //     //             GID: 81
-    //     //             GID: 98
-    //     //             GID: 701
-    //     //             GID: 33
-    //     //             GID: 100
-    //     //             GID: 204
-    //     //             GID: 250
-    //     //             GID: 395
-    //     //             GID: 398
-    //     //             GID: 399
+        //         Stamp: 0x00000000
+        //         Machine Name: <EMPTY>
+        //             length: 0
+        //             contents: <EMPTY>
+        //         UID: 501
+        //         GID: 20
+        //         Auxiliary GIDs (16) [501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399]
+        //             GID: 501
+        //             GID: 12
+        //             GID: 20
+        //             GID: 61
+        //             GID: 79
+        //             GID: 80
+        //             GID: 81
+        //             GID: 98
+        //             GID: 701
+        //             GID: 33
+        //             GID: 100
+        //             GID: 204
+        //             GID: 250
+        //             GID: 395
+        //             GID: 398
+        //             GID: 399
 
-    //     //     Verifier
-    //     //         Flavor: AUTH_NULL (0)
-    //     //         Length: 0
-    //     // Network File System, Ops(1): SETCLIENTID
-    //     //     [Program Version: 4]
-    //     //     [V4 Procedure: COMPOUND (1)]
-    //     //     Tag: setclid
-    //     //         length: 12
-    //     //         contents: setclid
-    //     //     minorversion: 0
-    //     //     Operations (count: 1): SETCLIENTID
-    //     //         Opcode: SETCLIENTID (35)
-    //     //             client
-    //     //                 verifier: 0x5ed267a200006839
-    //     //                 id: <DATA>
-    //     //                     length: 75
-    //     //                     contents: <DATA>
-    //     //                     fill bytes: opaque data
-    //     //             callback
-    //     //                 cb_program: 0x4e465343
-    //     //                 cb_location
-    //     //                     r_netid: tcp
-    //     //                         length: 3
-    //     //                         contents: tcp
-    //     //                         fill bytes: opaque data
-    //     //                     r_addr: 192.168.1.188.238.235
-    //     //                         length: 21
-    //     //                         contents: 192.168.1.188.238.235
-    //     //                         fill bytes: opaque data
-    //     //                     [IPv4 address 192.168.1.188, protocol=tcp, port=61163]
-    //     //             callback_ident: 0x00000002
-    //     //     [Main Opcode: SETCLIENTID (35)]
+        //     Verifier
+        //         Flavor: AUTH_NULL (0)
+        //         Length: 0
+        // Network File System, Ops(1): SETCLIENTID
+        //     [Program Version: 4]
+        //     [V4 Procedure: COMPOUND (1)]
+        //     Tag: setclid
+        //         length: 12
+        //         contents: setclid
+        //     minorversion: 0
+        //     Operations (count: 1): SETCLIENTID
+        //         Opcode: SETCLIENTID (35)
+        //             client
+        //                 verifier: 0x5ed267a200006839
+        //                 id: <DATA>
+        //                     length: 75
+        //                     contents: <DATA>
+        //                     fill bytes: opaque data
+        //             callback
+        //                 cb_program: 0x4e465343
+        //                 cb_location
+        //                     r_netid: tcp
+        //                         length: 3
+        //                         contents: tcp
+        //                         fill bytes: opaque data
+        //                     r_addr: 192.168.1.188.238.235
+        //                         length: 21
+        //                         contents: 192.168.1.188.238.235
+        //                         fill bytes: opaque data
+        //                     [IPv4 address 192.168.1.188, protocol=tcp, port=61163]
+        //             callback_ident: 0x00000002
+        //     [Main Opcode: SETCLIENTID (35)]
 
-    //     const RAW: [u8; 288] = hex!(
-    //         "8000011c265ec0fd0000000000000002000186a300000004000000010000000100
-    // 		0000540000000000000000000001f50000001400000010000001f50000000c00000
-    // 		0140000003d0000004f000000500000005100000062000002bd0000002100000064
-    // 		000000cc000000fa0000018b0000018e0000018f00000000000000000000000c736
-    // 		574636c696420202020200000000000000001000000235ed267a200006839000000
-    // 		4b00000000f8ffc247f4fb10020801c0a801bd00000000000000003139322e31363
-    // 		82e312e3138393a2f686f6d652f646f6d002f55736572732f646f6d2f4465736b74
-    // 		6f702f6d6f756e7400004e4653430000000374637000000000153139322e3136382
-    // 		e312e3138382e3233382e32333500000000000002"
-    //     );
+        const RAW: [u8; 288] = hex!(
+            "8000011c265ec0fd0000000000000002000186a300000004000000010000000100
+    		0000540000000000000000000001f50000001400000010000001f50000000c00000
+    		0140000003d0000004f000000500000005100000062000002bd0000002100000064
+    		000000cc000000fa0000018b0000018e0000018f00000000000000000000000c736
+    		574636c696420202020200000000000000001000000235ed267a200006839000000
+    		4b00000000f8ffc247f4fb10020801c0a801bd00000000000000003139322e31363
+    		82e312e3138393a2f686f6d652f646f6d002f55736572732f646f6d2f4465736b74
+    		6f702f6d6f756e7400004e4653430000000374637000000000153139322e3136382
+    		e312e3138382e3233382e32333500000000000002"
+        );
 
-    //     let static_raw: &'static [u8] = Box::leak(Box::new(RAW));
+        let static_raw: &'static [u8] = Box::leak(Box::new(RAW));
 
-    //     assert_eq!(expected_message_len(static_raw).unwrap(), 288);
+        assert_eq!(expected_message_len(static_raw).unwrap(), 288);
 
-    //     let msg = RpcMessage::try_from(Bytes::from(static_raw)).expect("failed to parse message");
-    //     assert_eq!(msg.xid(), 643743997);
-    //     assert_eq!(msg.serialised_len(), 288);
+        let msg = RpcMessage::try_from(Bytes::from(static_raw)).expect("failed to parse message");
+        assert_eq!(msg.xid(), 643743997);
+        assert_eq!(msg.serialised_len(), 288);
 
-    //     let body = msg.call_body().expect("not a call rpc");
-    //     assert_eq!(body.rpc_version(), 2);
-    //     assert_eq!(body.program(), 100003);
-    //     assert_eq!(body.program_version(), 4);
-    //     assert_eq!(body.procedure(), 1);
+        let body = msg.call_body().expect("not a call rpc");
+        assert_eq!(body.rpc_version(), 2);
+        assert_eq!(body.program(), 100003);
+        assert_eq!(body.program_version(), 4);
+        assert_eq!(body.procedure(), 1);
 
-    //     assert_eq!(body.auth_credentials().serialised_len(), 92);
-    //     let auth = match body.auth_credentials() {
-    //         AuthFlavor::AuthUnix(ref v) => v,
-    //         v => panic!("unexpected auth type {:?}", v),
-    //     };
+        assert_eq!(body.auth_credentials().serialised_len(), 92);
+        let auth = match body.auth_credentials() {
+            AuthFlavor::AuthUnix(ref v) => v,
+            v => panic!("unexpected auth type {:?}", v),
+        };
 
-    //     assert_eq!(auth.stamp(), 0x00000000);
-    //     assert_eq!(auth.machine_name_str(), "");
-    //     assert_eq!(auth.uid(), 501);
-    //     assert_eq!(auth.gid(), 20);
-    //     assert_eq!(
-    //         auth.gids(),
-    //         Some(
-    //             [501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399].as_slice()
-    //         )
-    //     );
-    //     assert_eq!(auth.serialised_len(), 84);
+        assert_eq!(auth.stamp(), 0x00000000);
+        assert_eq!(auth.machine_name_str(), "");
+        assert_eq!(auth.uid(), 501);
+        assert_eq!(auth.gid(), 20);
+        assert_eq!(
+            auth.gids(),
+            Some(
+                [501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399].as_slice()
+            )
+        );
+        assert_eq!(auth.serialised_len(), 84);
 
-    //     assert_eq!(*body.auth_verifier(), AuthFlavor::AuthNone(None));
+        assert_eq!(*body.auth_verifier(), AuthFlavor::AuthNone(None));
 
-    //     let payload = hex!(
-    //         "0000000c736574636c696420202020200000000000000001000000235ed267a200
-    // 		0068390000004b00000000f8ffc247f4fb10020801c0a801bd00000000000000003
-    // 		139322e3136382e312e3138393a2f686f6d652f646f6d002f55736572732f646f6d
-    // 		2f4465736b746f702f6d6f756e7400004e465343000000037463700000000015313
-    // 		9322e3136382e312e3138382e3233382e32333500000000000002"
-    //     );
+        let payload = hex!(
+            "0000000c736574636c696420202020200000000000000001000000235ed267a200
+    		0068390000004b00000000f8ffc247f4fb10020801c0a801bd00000000000000003
+    		139322e3136382e312e3138393a2f686f6d652f646f6d002f55736572732f646f6d
+    		2f4465736b746f702f6d6f756e7400004e465343000000037463700000000015313
+    		9322e3136382e312e3138382e3233382e32333500000000000002"
+        );
 
-    //     assert_eq!(body.payload(), payload.as_ref());
+        assert_eq!(body.payload(), payload.as_ref());
 
-    //     let serialised = msg.serialise().expect("failed to serialise");
-    //     assert_eq!(serialised.as_slice(), RAW.as_ref());
-    // }
+        let serialised = msg.serialise().expect("failed to serialise");
+        assert_eq!(serialised.as_slice(), RAW.as_ref());
+    }
 
     #[test]
     fn test_rpcmessage_auth_unix_empty<'a>() {
@@ -878,59 +879,59 @@ mod tests {
         assert_eq!(buf.as_slice(), RAW.as_ref());
     }
 
-    // #[test]
-    // #[cfg(feature = "bytes")]
-    // fn test_rpcmessage_reply_bytes<'a>() {
-    //     // Remote Procedure Call, Type:Reply XID:0x265ec0fd
-    //     //     Fragment header: Last fragment, 72 bytes
-    //     //         1... .... .... .... .... .... .... .... = Last Fragment: Yes
-    //     //         .000 0000 0000 0000 0000 0000 0100 1000 = Fragment Length: 72
-    //     //     XID: 0x265ec0fd (643743997)
-    //     //     Message Type: Reply (1)
-    //     //     [Program: NFS (100003)]
-    //     //     [Program Version: 4]
-    //     //     [Procedure: COMPOUND (1)]
-    //     //     Reply State: accepted (0)
-    //     //     [This is a reply to a request in frame 3]
-    //     //     [Time from request: 0.000159000 seconds]
-    //     //     Verifier
-    //     //         Flavor: AUTH_NULL (0)
-    //     //         Length: 0
-    //     //     Accept State: RPC executed successfully (0)
+    #[test]
+    #[cfg(feature = "bytes")]
+    fn test_rpcmessage_reply_bytes<'a>() {
+        // Remote Procedure Call, Type:Reply XID:0x265ec0fd
+        //     Fragment header: Last fragment, 72 bytes
+        //         1... .... .... .... .... .... .... .... = Last Fragment: Yes
+        //         .000 0000 0000 0000 0000 0000 0100 1000 = Fragment Length: 72
+        //     XID: 0x265ec0fd (643743997)
+        //     Message Type: Reply (1)
+        //     [Program: NFS (100003)]
+        //     [Program Version: 4]
+        //     [Procedure: COMPOUND (1)]
+        //     Reply State: accepted (0)
+        //     [This is a reply to a request in frame 3]
+        //     [Time from request: 0.000159000 seconds]
+        //     Verifier
+        //         Flavor: AUTH_NULL (0)
+        //         Length: 0
+        //     Accept State: RPC executed successfully (0)
 
-    //     const RAW: [u8; 76] = hex!(
-    //         "80000048265ec0fd00000001000000000000000000000000000000000000000000
-    //         00000c736574636c696420202020200000000100000023000000005ed2672e00000
-    //         0020200000000000000"
-    //     );
+        const RAW: [u8; 76] = hex!(
+            "80000048265ec0fd00000001000000000000000000000000000000000000000000
+            00000c736574636c696420202020200000000100000023000000005ed2672e00000
+            0020200000000000000"
+        );
 
-    //     let static_raw: &'static [u8] = Box::leak(Box::new(RAW));
+        let static_raw: &'static [u8] = Box::leak(Box::new(RAW));
 
-    //     let msg = RpcMessage::try_from(Bytes::from(static_raw)).expect("failed to parse message");
-    //     assert_eq!(msg.xid(), 643743997);
-    //     assert_eq!(msg.serialised_len(), 76);
+        let msg = RpcMessage::try_from(Bytes::from(static_raw)).expect("failed to parse message");
+        assert_eq!(msg.xid(), 643743997);
+        assert_eq!(msg.serialised_len(), 76);
 
-    //     let body = match msg.reply_body().expect("not a call rpc") {
-    //         ReplyBody::Accepted(b) => b,
-    //         _ => panic!("wrong reply type"),
-    //     };
-    //     assert_eq!(body.serialised_len(), 60);
+        let body = match msg.reply_body().expect("not a call rpc") {
+            ReplyBody::Accepted(b) => b,
+            _ => panic!("wrong reply type"),
+        };
+        assert_eq!(body.serialised_len(), 60);
 
-    //     match body.status() {
-    //         AcceptedStatus::Success(data) => {
-    //             assert_eq!(data.len(), 48);
-    //         }
-    //         _ => panic!("wrong reply status type"),
-    //     };
+        match body.status() {
+            AcceptedStatus::Success(data) => {
+                assert_eq!(data.len(), 48);
+            }
+            _ => panic!("wrong reply status type"),
+        };
 
-    //     match body.auth_verifier() {
-    //         AuthFlavor::AuthNone(None) => {}
-    //         _ => panic!("wrong verifier type"),
-    //     };
+        match body.auth_verifier() {
+            AuthFlavor::AuthNone(None) => {}
+            _ => panic!("wrong verifier type"),
+        };
 
-    //     let buf = msg.serialise().expect("failed to serialise");
-    //     assert_eq!(buf.as_slice(), RAW.as_ref());
-    // }
+        let buf = msg.serialise().expect("failed to serialise");
+        assert_eq!(buf.as_slice(), RAW.as_ref());
+    }
 
     #[test]
     fn test_fuzz_message_too_long_for_type<'a>() {
@@ -952,26 +953,26 @@ mod tests {
         }
     }
 
-    // #[test]
-    // #[cfg(feature = "bytes")]
-    // fn test_fuzz_message_too_long_for_type_bytes<'a>() {
-    //     const RAW: [u8; 39] = hex!(
-    //         "800000232323232300000001000000000000000000000000000000010302
-    //         232323232300232300"
-    //     );
+    #[test]
+    #[cfg(feature = "bytes")]
+    fn test_fuzz_message_too_long_for_type_bytes<'a>() {
+        const RAW: [u8; 39] = hex!(
+            "800000232323232300000001000000000000000000000000000000010302
+            232323232300232300"
+        );
 
-    //     let msg = RpcMessage::try_from(Bytes::copy_from_slice(RAW.as_ref()));
-    //     match msg {
-    //         Err(Error::IncompleteMessage {
-    //             buffer_len: b,
-    //             expected: e,
-    //         }) => {
-    //             assert_eq!(b, 39);
-    //             assert_eq!(e, 28);
-    //         }
-    //         v => panic!("expected incomplete error, got {:?}", v),
-    //     }
-    // }
+        let msg = RpcMessage::try_from(Bytes::copy_from_slice(RAW.as_ref()));
+        match msg {
+            Err(Error::IncompleteMessage {
+                buffer_len: b,
+                expected: e,
+            }) => {
+                assert_eq!(b, 39);
+                assert_eq!(e, 28);
+            }
+            v => panic!("expected incomplete error, got {:?}", v),
+        }
+    }
 
     #[test]
     fn test_ioslice_payload() {
@@ -1009,8 +1010,7 @@ mod tests {
             uid in any::<u32>(),
             gid in any::<u32>(),
             gids in prop::collection::vec(any::<u32>(), 0..=16),
-        ) -> AuthUnixParams<Opaque<Vec<u8>>> {
-            let machine_name = Opaque::from(machine_name);
+        ) -> AuthUnixParams<Vec<u8>> {
             AuthUnixParams::new(
                 stamp,
                 machine_name,
@@ -1021,7 +1021,7 @@ mod tests {
         }
     }
 
-    fn arbitrary_auth_flavor() -> impl Strategy<Value = AuthFlavor<Opaque<Vec<u8>>>> {
+    fn arbitrary_auth_flavor() -> impl Strategy<Value = AuthFlavor<Vec<u8>>> {
         prop_oneof![
             // AuthNone
             of(arbitrary_bytes(0..=200))
@@ -1046,7 +1046,7 @@ mod tests {
             auth_credentials in arbitrary_auth_flavor(),
             auth_verifier in arbitrary_auth_flavor(),
             payload in arbitrary_bytes(OPAQUE_BYTE_SIZE),
-        ) -> CallBody<Opaque<Vec<u8>>, Vec<u8>> {
+        ) -> CallBody<Vec<u8>, Vec<u8>> {
             CallBody::new(
                 program,
                 program_version,
@@ -1074,7 +1074,7 @@ mod tests {
         fn arbitrary_accepted_reply()(
             auth_verifier in arbitrary_auth_flavor(),
             status in arbitrary_accepted_status(),
-        ) -> AcceptedReply<Opaque<Vec<u8>>, Vec<u8>> {
+        ) -> AcceptedReply<Vec<u8>, Vec<u8>> {
             AcceptedReply::new(
                 auth_verifier,
                 status
@@ -1103,14 +1103,14 @@ mod tests {
         ]
     }
 
-    fn arbitrary_reply_body() -> impl Strategy<Value = ReplyBody<Opaque<Vec<u8>>, Vec<u8>>> {
+    fn arbitrary_reply_body() -> impl Strategy<Value = ReplyBody<Vec<u8>, Vec<u8>>> {
         prop_oneof![
             arbitrary_accepted_reply().prop_map(ReplyBody::Accepted),
             arbitrary_rejected_reply().prop_map(ReplyBody::Denied),
         ]
     }
 
-    fn arbitrary_message_type() -> impl Strategy<Value = MessageType<Opaque<Vec<u8>>, Vec<u8>>> {
+    fn arbitrary_message_type() -> impl Strategy<Value = MessageType<Vec<u8>, Vec<u8>>> {
         prop_oneof![
             arbitrary_call_body().prop_map(MessageType::Call),
             arbitrary_reply_body().prop_map(MessageType::Reply),
@@ -1121,7 +1121,7 @@ mod tests {
         fn arbitrary_rpc_message()(
             xid in any::<u32>(),
             message_type in arbitrary_message_type(),
-        ) -> RpcMessage<Opaque<Vec<u8>>, Vec<u8>> {
+        ) -> RpcMessage<Vec<u8>, Vec<u8>> {
             RpcMessage::new(xid, message_type)
         }
     }

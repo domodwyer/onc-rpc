@@ -5,7 +5,7 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::{auth::AuthUnixParams, Error, Opaque, SerializeOpaque};
+use crate::{auth::AuthUnixParams, Error, Opaque};
 
 const AUTH_NONE: u32 = 0;
 const AUTH_UNIX: u32 = 1;
@@ -19,13 +19,13 @@ const AUTH_SHORT: u32 = 2;
 #[derive(Debug, PartialEq, Clone)]
 pub enum AuthFlavor<T>
 where
-    T: AsRef<[u8]> + SerializeOpaque,
+    T: AsRef<[u8]>,
 {
     /// `AUTH_NONE` with the opaque data the spec allows to be included
     /// (typically `None`).
     ///
     /// The provided opaque auth payload must not exceed 200 bytes in length.
-    AuthNone(Option<T>),
+    AuthNone(Option<Opaque<T>>),
 
     /// `AUTH_UNIX` and the fields it contains.
     AuthUnix(AuthUnixParams<T>),
@@ -33,7 +33,7 @@ where
     /// `AUTH_SHORT` and its opaque identifier
     ///
     /// The provided opaque auth payload must not exceed 200 bytes in length.
-    AuthShort(T),
+    AuthShort(Opaque<T>),
 
     /// An authentication credential unknown to this library, but possibly valid
     /// and acceptable by the server.
@@ -44,11 +44,11 @@ where
         /// The opaque data contained within the this flavour.
         ///
         /// This payload must not exceed 200 bytes in length.
-        data: T,
+        data: Opaque<T>,
     },
 }
 
-impl<'a> AuthFlavor<Opaque<&'a [u8]>> {
+impl<'a> AuthFlavor<&'a [u8]> {
     pub(crate) fn from_cursor(r: &mut Cursor<&'a [u8]>) -> Result<Self, Error> {
         // Read the auth type
         let flavor = r.read_u32::<BigEndian>()?;
@@ -93,7 +93,7 @@ impl<'a> AuthFlavor<Opaque<&'a [u8]>> {
 
 impl<T> AuthFlavor<T>
 where
-    T: AsRef<[u8]> + SerializeOpaque,
+    T: AsRef<[u8]>,
 {
     /// Serialises this auth flavor and writes it into buf.
     ///
@@ -153,16 +153,16 @@ where
         l += match self {
             Self::AuthNone(ref data) => {
                 // Data length + length prefix u32
-                data.as_ref().map_or(0, |d| d.as_ref().serialised_len() as usize)
+                data.as_ref().map_or(0, |d| d.serialised_len() as usize)
             }
             Self::AuthUnix(ref p) => p.serialised_len() as usize,
             Self::AuthShort(data) => {
                 // Data length
-                data.as_ref().serialised_len() as usize
+                data.serialised_len() as usize
             }
             Self::Unknown { id: _id, data } => {
                 // Data length + length prefix u32
-                data.as_ref().serialised_len() as usize
+                data.serialised_len() as usize
             }
         };
 
@@ -170,7 +170,7 @@ where
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for AuthFlavor<Opaque<&'a [u8]>> {
+impl<'a> TryFrom<&'a [u8]> for AuthFlavor<&'a [u8]> {
     type Error = Error;
 
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
@@ -180,7 +180,7 @@ impl<'a> TryFrom<&'a [u8]> for AuthFlavor<Opaque<&'a [u8]>> {
 }
 
 #[cfg(feature = "bytes")]
-impl TryFrom<crate::Bytes> for AuthFlavor<Opaque<crate::Bytes>> {
+impl TryFrom<crate::Bytes> for AuthFlavor<crate::Bytes> {
     type Error = Error;
 
     fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
@@ -242,7 +242,7 @@ mod tests {
             "0000000100000024000000000000000f4c4150544f502d315151425044474d00000000000000000000000000"
         );
 
-        let f: AuthFlavor<Opaque<&'a [u8]>> =
+        let f: AuthFlavor<&'a [u8]> =
             RAW.as_ref().try_into().expect("failed to parse message");
         assert_eq!(f.serialised_len(), 44);
         assert_eq!(f.id(), AUTH_UNIX);
@@ -297,7 +297,7 @@ mod tests {
             02100000064000000cc000000fa0000018b0000018e0000018f"
         );
 
-        let f: AuthFlavor<Opaque<&'a [u8]>> =
+        let f: AuthFlavor<&'a [u8]> =
             RAW.as_ref().try_into().expect("failed to parse message");
         assert_eq!(f.serialised_len(), 92);
         assert_eq!(f.id(), AUTH_UNIX);
@@ -328,7 +328,7 @@ mod tests {
             cc000000fa0000018b0000018e0000018f"
         );
 
-        let f: AuthFlavor<Opaque<&'a [u8]>> =
+        let f: AuthFlavor<&'a [u8]> =
             RAW.as_ref().try_into().expect("failed to parse message");
         assert_eq!(f.serialised_len(), 92);
         assert_eq!(f.id(), AUTH_NONE);
@@ -353,7 +353,7 @@ mod tests {
             cc000000fa0000018b0000018e0000018f"
         );
 
-        let f: AuthFlavor<Opaque<&'a [u8]>> =
+        let f: AuthFlavor<&'a [u8]> =
             RAW.as_ref().try_into().expect("failed to parse message");
         assert_eq!(f.serialised_len(), 92);
         assert_eq!(f.id(), AUTH_SHORT);
@@ -378,7 +378,7 @@ mod tests {
             cc000000fa0000018b0000018e0000018f"
         );
 
-        let f: AuthFlavor<Opaque<&'a [u8]>> =
+        let f: AuthFlavor<&'a [u8]> =
             RAW.as_ref().try_into().expect("failed to parse message");
         assert_eq!(f.serialised_len(), 92);
         assert_eq!(f.id(), 255);

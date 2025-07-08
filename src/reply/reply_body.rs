@@ -6,7 +6,7 @@ use std::{
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use super::{AcceptedReply, RejectedReply};
-use crate::{Error, Opaque, SerializeOpaque};
+use crate::Error;
 
 const REPLY_ACCEPTED: u32 = 0;
 const REPLY_DENIED: u32 = 1;
@@ -15,7 +15,7 @@ const REPLY_DENIED: u32 = 1;
 #[derive(Debug, PartialEq)]
 pub enum ReplyBody<T, P>
 where
-    T: AsRef<[u8]> + SerializeOpaque,
+    T: AsRef<[u8]>,
     P: AsRef<[u8]>,
 {
     /// The server accepted the request credentials.
@@ -25,7 +25,7 @@ where
     Denied(RejectedReply),
 }
 
-impl<'a> ReplyBody<Opaque<&'a [u8]>, &'a [u8]> {
+impl<'a> ReplyBody<&'a [u8], &'a [u8]> {
     pub(crate) fn from_cursor(r: &mut Cursor<&'a [u8]>) -> Result<Self, Error> {
         match r.read_u32::<BigEndian>()? {
             REPLY_ACCEPTED => Ok(ReplyBody::Accepted(AcceptedReply::from_cursor(r)?)),
@@ -37,7 +37,7 @@ impl<'a> ReplyBody<Opaque<&'a [u8]>, &'a [u8]> {
 
 impl<T, P> ReplyBody<T, P>
 where
-    T: AsRef<[u8]> + SerializeOpaque,
+    T: AsRef<[u8]>,
     P: AsRef<[u8]>,
 {
     /// Serialises this `ReplyBody` into `buf`, advancing the cursor position by
@@ -73,7 +73,7 @@ where
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for ReplyBody<Opaque<&'a [u8]>, &'a [u8]> {
+impl<'a> TryFrom<&'a [u8]> for ReplyBody<&'a [u8], &'a [u8]> {
     type Error = Error;
 
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
@@ -83,7 +83,7 @@ impl<'a> TryFrom<&'a [u8]> for ReplyBody<Opaque<&'a [u8]>, &'a [u8]> {
 }
 
 #[cfg(feature = "bytes")]
-impl TryFrom<crate::Bytes> for ReplyBody<Opaque<crate::Bytes>, crate::Bytes> {
+impl TryFrom<crate::Bytes> for ReplyBody<crate::Bytes, crate::Bytes> {
     type Error = Error;
 
     fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
@@ -99,7 +99,7 @@ impl TryFrom<crate::Bytes> for ReplyBody<Opaque<crate::Bytes>, crate::Bytes> {
 
 #[cfg(test)]
 mod tests {
-    use crate::auth::AuthFlavor;
+    use crate::{auth::AuthFlavor, Opaque};
 
     use super::*;
 
@@ -111,7 +111,7 @@ mod tests {
         let auth = AuthFlavor::AuthNone(Some(Opaque::from(binding.as_slice())));
         let payload = [42, 42, 42, 42];
 
-        let _reply: ReplyBody<Opaque<&[u8]>, [u8; 4]> = ReplyBody::Accepted(
+        let _reply: ReplyBody<&[u8], [u8; 4]> = ReplyBody::Accepted(
             AcceptedReply::new(auth, crate::AcceptedStatus::Success(payload)),
         );
     }

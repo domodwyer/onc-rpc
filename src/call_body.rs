@@ -5,7 +5,7 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::{auth::AuthFlavor, Error, Opaque, SerializeOpaque};
+use crate::{auth::AuthFlavor, Error};
 
 const RPC_VERSION: u32 = 2;
 
@@ -17,7 +17,7 @@ const RPC_VERSION: u32 = 2;
 #[derive(Debug, PartialEq)]
 pub struct CallBody<T, P>
 where
-    T: AsRef<[u8]> + SerializeOpaque,
+    T: AsRef<[u8]>,
 {
     program: u32,
     program_version: u32,
@@ -29,7 +29,7 @@ where
     payload: P,
 }
 
-impl<'a> CallBody<Opaque<&'a [u8]>, &'a [u8]> {
+impl<'a> CallBody<&'a [u8], &'a [u8]> {
     /// Constructs a new `CallBody` by parsing the wire format read from `r`.
     ///
     /// `from_cursor` advances the position of `r` to the end of the `CallBody`
@@ -64,7 +64,7 @@ impl<'a> CallBody<Opaque<&'a [u8]>, &'a [u8]> {
 
 impl<T, P> CallBody<T, P>
 where
-    T: AsRef<[u8]> + SerializeOpaque,
+    T: AsRef<[u8]>,
     P: AsRef<[u8]>,
 {
     /// Construct a new RPC invocation request.
@@ -158,7 +158,7 @@ where
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for CallBody<Opaque<&'a [u8]>, &'a [u8]> {
+impl<'a> TryFrom<&'a [u8]> for CallBody<&'a [u8], &'a [u8]> {
     type Error = Error;
 
     fn try_from(v: &'a [u8]) -> Result<Self, Self::Error> {
@@ -168,7 +168,7 @@ impl<'a> TryFrom<&'a [u8]> for CallBody<Opaque<&'a [u8]>, &'a [u8]> {
 }
 
 #[cfg(feature = "bytes")]
-impl TryFrom<crate::Bytes> for CallBody<Opaque<crate::Bytes>, crate::Bytes> {
+impl TryFrom<crate::Bytes> for CallBody<crate::Bytes, crate::Bytes> {
     type Error = Error;
 
     fn try_from(mut v: crate::Bytes) -> Result<Self, Self::Error> {
@@ -205,6 +205,7 @@ impl TryFrom<crate::Bytes> for CallBody<Opaque<crate::Bytes>, crate::Bytes> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Opaque;
 
     // A compile-time test that ensures a payload can differ in type from the
     // auth buffer.
@@ -214,7 +215,7 @@ mod tests {
         let auth = AuthFlavor::AuthNone(Some(Opaque::from(binding.as_slice())));
         let payload = [42, 42, 42, 42];
 
-        let _call: CallBody<Opaque<&[u8]>, &[u8; 4]> =
+        let _call: CallBody<&[u8], &[u8; 4]> =
             CallBody::new(100000, 42, 13, auth.clone(), auth, &payload);
     }
 }

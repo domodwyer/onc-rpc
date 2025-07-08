@@ -1,16 +1,13 @@
-use std::{
-    io::{Cursor, Write},
-    marker::PhantomData,
-};
+use std::io::{Cursor, Write};
 
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{BigEndian, ReadBytesExt};
 
 use crate::Error;
 
 // Opaque is a Variable-length Array that holds an uninterpreted byte array
 //https://datatracker.ietf.org/doc/html/rfc1014#section-3.12
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Opaque<T>
+pub(crate) struct Opaque<T>
 where
     T: AsRef<[u8]>,
 {
@@ -89,27 +86,7 @@ where
     pub fn len(&self) -> usize {
         self.body.as_ref().len()
     }
-}
-
-impl<T> AsRef<[u8]> for Opaque<T>
-where
-    T: AsRef<[u8]> + Sized,
-{
-    fn as_ref(&self) -> &[u8] {
-        self.body.as_ref()
-    }
-}
-
-pub trait SerializeOpaque {
-    fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error>;
-
-    fn serialised_len(&self) -> u32;
-}
-
-impl<T> SerializeOpaque for T
-where T: AsRef<[u8]>
-{
-    fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error> {
+    pub fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error> {
             let len = self.as_ref().len() as u32;
             let _ = buf.write_all(self.as_ref());
             let fill_bytes = pad_length(len) as usize;
@@ -119,9 +96,18 @@ where T: AsRef<[u8]>
             }
             Ok(())
     }
-    fn serialised_len(&self) -> u32 {
+    pub fn serialised_len(&self) -> u32 {
         let len = self.as_ref().len() as u32;
         len + pad_length(len)
+    }
+}
+
+impl<T> AsRef<[u8]> for Opaque<T>
+where
+    T: AsRef<[u8]> + Sized,
+{
+    fn as_ref(&self) -> &[u8] {
+        self.body.as_ref()
     }
 }
 
@@ -165,12 +151,10 @@ fn pad_length(l: u32) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use std::{io::Cursor, marker::PhantomData};
+    use std::io::Cursor;
 
     use byteorder::{BigEndian, WriteBytesExt};
     use hex_literal::hex;
-
-    use crate::SerializeOpaque;
 
     use super::Opaque;
 
