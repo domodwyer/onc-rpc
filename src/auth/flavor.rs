@@ -5,7 +5,7 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::{auth::AuthUnixParams, Error, Opaque};
+use crate::{auth::AuthUnixParams, read_opaque, Error, SerializeOpaque};
 
 const AUTH_NONE: u32 = 0;
 const AUTH_UNIX: u32 = 1;
@@ -25,7 +25,7 @@ where
     /// (typically `None`).
     ///
     /// The provided opaque auth payload must not exceed 200 bytes in length.
-    AuthNone(Option<Opaque<T>>),
+    AuthNone(Option<T>),
 
     /// `AUTH_UNIX` and the fields it contains.
     AuthUnix(AuthUnixParams<T>),
@@ -33,7 +33,7 @@ where
     /// `AUTH_SHORT` and its opaque identifier
     ///
     /// The provided opaque auth payload must not exceed 200 bytes in length.
-    AuthShort(Opaque<T>),
+    AuthShort(T),
 
     /// An authentication credential unknown to this library, but possibly valid
     /// and acceptable by the server.
@@ -44,7 +44,7 @@ where
         /// The opaque data contained within the this flavour.
         ///
         /// This payload must not exceed 200 bytes in length.
-        data: Opaque<T>,
+        data: T,
     },
 }
 
@@ -67,7 +67,7 @@ impl<'a> AuthFlavor<&'a [u8]> {
             // 6 => AuthFlavor::RpcSecGSS,
             v => AuthFlavor::Unknown {
                 id: v,
-                data: Opaque::read_body(r, len)?,
+                data: read_opaque(r, len)?,
             },
         };
 
@@ -79,7 +79,7 @@ impl<'a> AuthFlavor<&'a [u8]> {
             return Ok(AuthFlavor::AuthNone(None));
         }
 
-        Ok(AuthFlavor::AuthNone(Some(Opaque::read_body(r, len)?)))
+        Ok(AuthFlavor::AuthNone(Some(read_opaque(r, len)?)))
     }
 
     fn new_unix(r: &mut Cursor<&'a [u8]>, len: u32) -> Result<Self, Error> {
@@ -87,7 +87,7 @@ impl<'a> AuthFlavor<&'a [u8]> {
     }
 
     fn new_short(r: &mut Cursor<&'a [u8]>, len: u32) -> Result<Self, Error> {
-        Ok(AuthFlavor::AuthShort(Opaque::read_body(r, len)?))
+        Ok(AuthFlavor::AuthShort(read_opaque(r, len)?))
     }
 }
 
@@ -130,11 +130,11 @@ where
     /// Returns the byte length of the associated auth data, if any.
     pub fn associated_data_len(&self) -> u32 {
         match self {
-            Self::AuthNone(Some(d)) => d.serialised_len(),
+            Self::AuthNone(Some(d)) => d.as_ref().len() as u32,
             Self::AuthNone(None) => 0,
             Self::AuthUnix(p) => p.serialised_len(),
-            Self::AuthShort(d) => d.serialised_len(),
-            Self::Unknown { id: _id, data } => data.serialised_len(),
+            Self::AuthShort(d) => d.as_ref().len() as u32,
+            Self::Unknown { id: _id, data } => data.as_ref().len() as u32,
         }
     }
 
@@ -191,7 +191,7 @@ impl TryFrom<crate::Bytes> for AuthFlavor<crate::Bytes> {
 
         let flavor = match flavor {
             AUTH_NONE if auth_data.is_empty() => Self::AuthNone(None),
-            AUTH_NONE => Self::AuthNone(Some(Opaque::from(auth_data))),
+            AUTH_NONE => Self::AuthNone(Some(auth_data)),
             AUTH_UNIX => {
                 // Prevent malformed messages from including trailing data in
                 // the AUTH_UNIX structure - the deserialised structure should
@@ -204,12 +204,12 @@ impl TryFrom<crate::Bytes> for AuthFlavor<crate::Bytes> {
                 }
                 Self::AuthUnix(params)
             }
-            AUTH_SHORT => Self::AuthShort(Opaque::from(auth_data)),
+            AUTH_SHORT => Self::AuthShort(auth_data),
             // 3 => AuthFlavor::AuthDH,
             // 6 => AuthFlavor::RpcSecGSS,
             id => Self::Unknown {
                 id,
-                data: Opaque::from(auth_data),
+                data: auth_data,
             },
         };
 

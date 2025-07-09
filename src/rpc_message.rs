@@ -435,7 +435,7 @@ mod tests {
     #[test]
     fn test_differing_payload_type() {
         let binding = vec![42];
-        let auth = AuthFlavor::AuthNone(Some(Opaque::from(binding.as_slice())));
+        let auth = AuthFlavor::AuthNone(Some(binding.as_slice()));
         let payload = [42, 42, 42, 42];
 
         let _msg: RpcMessage<&[u8], &[u8; 4]> = RpcMessage::new(
@@ -1025,15 +1025,15 @@ mod tests {
         prop_oneof![
             // AuthNone
             of(arbitrary_bytes(0..=200))
-                .prop_map(|opt_data| AuthFlavor::AuthNone(opt_data.map(|data| Opaque::from(data)))),
+                .prop_map(|opt_data| AuthFlavor::AuthNone(opt_data.map(|data| data))),
             // AuthUnix
             arbitrary_unix_auth_params().prop_map(AuthFlavor::AuthUnix),
             // AuthShort
-            arbitrary_bytes(0..=200).prop_map(|data| AuthFlavor::AuthShort(Opaque::from(data))),
+            arbitrary_bytes(0..=200).prop_map(|data| AuthFlavor::AuthShort(data)),
             // Unknown
             (any::<u32>(), arbitrary_bytes(0..=200)).prop_map(|(id, data)| AuthFlavor::Unknown {
                 id,
-                data: Opaque::from(data)
+                data: data
             })
         ]
     }

@@ -7,7 +7,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use hex_literal::hex;
 use onc_rpc::{
     auth::{AuthFlavor, AuthUnixParams},
-    Bytes, CallBody, MessageType, Opaque, RpcMessage,
+    Bytes, CallBody, MessageType, RpcMessage,
 };
 
 pub fn auth(c: &mut Criterion) {
@@ -20,7 +20,7 @@ pub fn auth(c: &mut Criterion) {
         let raw_ref: &[u8] = raw.as_ref();
 
         b.iter(|| {
-            let a: AuthFlavor<Opaque<&[u8]>> = raw_ref.try_into().unwrap();
+            let a: AuthFlavor<&[u8]> = raw_ref.try_into().unwrap();
             black_box(a)
         })
     });
@@ -43,7 +43,7 @@ pub fn auth(c: &mut Criterion) {
         let raw_ref: &[u8] = raw.as_ref();
 
         b.iter(|| {
-            let a: AuthFlavor<Opaque<&[u8]>> = raw_ref.try_into().unwrap();
+            let a: AuthFlavor<&[u8]> = raw_ref.try_into().unwrap();
             black_box(a)
         })
     });
@@ -86,7 +86,7 @@ pub fn rpc_message(c: &mut Criterion) {
         let gids = [
             501, 12, 20, 61, 79, 80, 81, 98, 701, 33, 100, 204, 250, 395, 398, 399,
         ];
-        let params = AuthUnixParams::new(0, Opaque::from("".as_ref()), 501, 20, gids);
+        let params = AuthUnixParams::new(0, "", 501, 20, gids);
         let payload = vec![];
         let msg = RpcMessage::new(
             4242,

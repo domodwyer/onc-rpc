@@ -205,14 +205,13 @@ impl TryFrom<crate::Bytes> for CallBody<crate::Bytes, crate::Bytes> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Opaque;
 
     // A compile-time test that ensures a payload can differ in type from the
     // auth buffer.
     #[test]
     fn test_differing_payload_type() {
         let binding = vec![42];
-        let auth = AuthFlavor::AuthNone(Some(Opaque::from(binding.as_slice())));
+        let auth = AuthFlavor::AuthNone(Some(binding.as_slice()));
         let payload = [42, 42, 42, 42];
 
         let _call: CallBody<&[u8], &[u8; 4]> =

@@ -99,7 +99,7 @@ impl TryFrom<crate::Bytes> for ReplyBody<crate::Bytes, crate::Bytes> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{auth::AuthFlavor, Opaque};
+    use crate::auth::AuthFlavor;
 
     use super::*;
 
@@ -108,7 +108,7 @@ mod tests {
     #[test]
     fn test_differing_payload_type() {
         let binding = vec![42];
-        let auth = AuthFlavor::AuthNone(Some(Opaque::from(binding.as_slice())));
+        let auth = AuthFlavor::AuthNone(Some(binding.as_slice()));
         let payload = [42, 42, 42, 42];
 
         let _reply: ReplyBody<&[u8], [u8; 4]> = ReplyBody::Accepted(

@@ -32,61 +32,40 @@ impl<'a> TryFrom<&mut Cursor<&'a [u8]>> for Opaque<&'a [u8]> {
     }
 }
 
-impl<'a> Opaque<&'a [u8]> {
-    /// Reads the body of an `Opaque` value from the given `r`,
-    /// assuming the length header has already been consumed.
-    ///
-    /// This function reads exactly `expected_len` bytes of actual data,
-    /// and advances the `r` past any necessary padding to maintain
-    /// 4-byte alignment (as per XDR format).
-    /// # Arguments
-    ///
-    /// * `r` - A cursor positioned at the start of the opaque data (after the length field).
-    /// * `expected_len` - The length of the opaque data to read, previously parsed from the wire.
-    ///
-    /// # Returns
-    ///
-    /// An `Opaque` containing the parsed data.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if fewer than `expected_len` bytes can be read,
-    /// or if the reader cannot be advanced past the padding.
-    pub fn read_body(r: &mut Cursor<&'a [u8]>, expected_len: u32) -> Result<Self, Error> {
-        let start_pos = r.position() as usize;
-        let end_pos = start_pos + expected_len as usize;
-        let data = *r.get_ref();
-        let padded_end = pad_length(expected_len) + end_pos as u32;
+/// read bytes from `r`
+/// assuming the length header has already been consumed.
+/// advances `r` with padded length
+pub(crate) fn read_opaque<'a>(r: &mut Cursor<&'a [u8]>, expected_len: u32) -> Result<&'a [u8], Error>{
+    let start_pos = r.position() as usize;
+    let end_pos = start_pos + expected_len as usize;
+    let data = *r.get_ref();
+    let padded_end = pad_length(expected_len) + end_pos as u32;
+    
+    let total_len = r.get_ref().len();
 
-        let total_len = r.get_ref().len();
-
-        // If there is not enough data to advances, this function failed
-        if total_len < padded_end as usize {
-            return Err(Error::InvalidAuthData);
-        }
-
-        r.set_position(padded_end as u64);
-
-        Ok(Opaque {
-            body: &data[start_pos..end_pos],
-        })
+    // If there is not enough data to advances, this function failed
+    if total_len < padded_end as usize {
+        return Err(Error::InvalidAuthData);
     }
+    
+    r.set_position(padded_end as u64);
+    Ok(&data[start_pos..end_pos])
 }
 
 impl<T> Opaque<T>
 where
     T: AsRef<[u8]> + Sized,
 {
-    pub fn from(data: T) -> Opaque<T> {
+    pub(crate) fn from(data: T) -> Opaque<T> {
         Opaque {
             body: data,
         }
     }
 
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.body.as_ref().len()
     }
-    pub fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error> {
+    pub(crate) fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error> {
             let len = self.as_ref().len() as u32;
             let _ = buf.write_all(self.as_ref());
             let fill_bytes = pad_length(len) as usize;
@@ -96,7 +75,7 @@ where
             }
             Ok(())
     }
-    pub fn serialised_len(&self) -> u32 {
+    pub(crate) fn serialised_len(&self) -> u32 {
         let len = self.as_ref().len() as u32;
         len + pad_length(len)
     }
@@ -108,6 +87,31 @@ where
 {
     fn as_ref(&self) -> &[u8] {
         self.body.as_ref()
+    }
+}
+
+pub(crate) trait SerializeOpaque {
+    fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error>;
+
+    fn serialised_len(&self) -> u32;
+}
+
+impl<T> SerializeOpaque for T
+where T: AsRef<[u8]>
+{
+    fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error> {
+            let len = self.as_ref().len() as u32;
+            let _ = buf.write_all(self.as_ref());
+            let fill_bytes = pad_length(len) as usize;
+            const PADDING: [u8; 3] = [0; 3];
+            if fill_bytes > 0 {
+                buf.write_all(&PADDING[..fill_bytes])?;
+            }
+            Ok(())
+    }
+    fn serialised_len(&self) -> u32 {
+        let len = self.as_ref().len() as u32;
+        len + pad_length(len)
     }
 }
 
@@ -142,7 +146,7 @@ where
 // machines, so that encoded data can be meaningfully compared or
 // checksummed.  Forcing the padded bytes to be zero ensures this.
 #[inline]
-fn pad_length(l: u32) -> u32 {
+pub(crate) fn pad_length(l: u32) -> u32 {
     if l % 4 == 0 {
         return 0;
     }

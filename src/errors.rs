@@ -94,6 +94,10 @@ pub enum Error {
     /// An I/O error occurred when trying to parse the buffer.
     #[error("i/o error ({0:?}): {1}")]
     IOError(std::io::ErrorKind, String),
+    
+    /// As Per XDR spec, padding data must be zero
+    #[error("padding data must be zero")]
+    InvalidPaddingData,
 }
 
 impl From<std::io::Error> for Error {
