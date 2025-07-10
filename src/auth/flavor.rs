@@ -242,8 +242,7 @@ mod tests {
             "0000000100000024000000000000000f4c4150544f502d315151425044474d00000000000000000000000000"
         );
 
-        let f: AuthFlavor<&'a [u8]> =
-            RAW.as_ref().try_into().expect("failed to parse message");
+        let f: AuthFlavor<&'a [u8]> = RAW.as_ref().try_into().expect("failed to parse message");
         assert_eq!(f.serialised_len(), 44);
         assert_eq!(f.id(), AUTH_UNIX);
         assert_eq!(f.associated_data_len(), 44 - 4 - 4);
@@ -297,8 +296,7 @@ mod tests {
             02100000064000000cc000000fa0000018b0000018e0000018f"
         );
 
-        let f: AuthFlavor<&'a [u8]> =
-            RAW.as_ref().try_into().expect("failed to parse message");
+        let f: AuthFlavor<&'a [u8]> = RAW.as_ref().try_into().expect("failed to parse message");
         assert_eq!(f.serialised_len(), 92);
         assert_eq!(f.id(), AUTH_UNIX);
         assert_eq!(f.associated_data_len(), 92 - 4 - 4);
@@ -328,8 +326,7 @@ mod tests {
             cc000000fa0000018b0000018e0000018f"
         );
 
-        let f: AuthFlavor<&'a [u8]> =
-            RAW.as_ref().try_into().expect("failed to parse message");
+        let f: AuthFlavor<&'a [u8]> = RAW.as_ref().try_into().expect("failed to parse message");
         assert_eq!(f.serialised_len(), 92);
         assert_eq!(f.id(), AUTH_NONE);
         assert_eq!(f.associated_data_len(), 92 - 4 - 4);
@@ -353,8 +350,7 @@ mod tests {
             cc000000fa0000018b0000018e0000018f"
         );
 
-        let f: AuthFlavor<&'a [u8]> =
-            RAW.as_ref().try_into().expect("failed to parse message");
+        let f: AuthFlavor<&'a [u8]> = RAW.as_ref().try_into().expect("failed to parse message");
         assert_eq!(f.serialised_len(), 92);
         assert_eq!(f.id(), AUTH_SHORT);
         assert_eq!(f.associated_data_len(), 92 - 4 - 4);
@@ -378,8 +374,7 @@ mod tests {
             cc000000fa0000018b0000018e0000018f"
         );
 
-        let f: AuthFlavor<&'a [u8]> =
-            RAW.as_ref().try_into().expect("failed to parse message");
+        let f: AuthFlavor<&'a [u8]> = RAW.as_ref().try_into().expect("failed to parse message");
         assert_eq!(f.serialised_len(), 92);
         assert_eq!(f.id(), 255);
         assert_eq!(f.associated_data_len(), 92 - 4 - 4);

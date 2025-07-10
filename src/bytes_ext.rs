@@ -31,9 +31,9 @@ impl BytesReaderExt for Bytes {
         }
 
         if self.as_ref()[len..padded_len].iter().any(|e| *e != 0) {
-            return Err(Error::InvalidPaddingData)
+            return Err(Error::InvalidPaddingData);
         }
-        
+
         let data = self.slice(..len);
         self.advance(padded_len);
 

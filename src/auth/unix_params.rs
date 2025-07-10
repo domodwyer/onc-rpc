@@ -165,7 +165,7 @@ where
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         buf.write_u32::<BigEndian>(self.stamp)?;
         let opaque = Opaque::from(self.machine_name.as_ref());
-        let machine_name_len = opaque.len() as u32;// length header for opaque
+        let machine_name_len = opaque.len() as u32; // length header for opaque
         buf.write_u32::<BigEndian>(machine_name_len)?;
         opaque.serialise_into(&mut buf)?;
         buf.write_u32::<BigEndian>(self.uid)?;
@@ -226,9 +226,9 @@ where
         // uid, gid, stamp
         let mut l = std::mem::size_of::<u32>() * 3;
 
-        // machine_name length 
+        // machine_name length
         let opaque = Opaque::from(self.machine_name.as_ref());
-        l += opaque.serialised_len() as usize + 4;// length header takes 4 byte
+        l += opaque.serialised_len() as usize + 4; // length header takes 4 byte
 
         // gids length prefix u32 + values
         l += (self.gids.deref().len() + 1) * std::mem::size_of::<u32>();

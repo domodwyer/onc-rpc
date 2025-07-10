@@ -111,8 +111,9 @@ mod tests {
         let auth = AuthFlavor::AuthNone(Some(binding.as_slice()));
         let payload = [42, 42, 42, 42];
 
-        let _reply: ReplyBody<&[u8], [u8; 4]> = ReplyBody::Accepted(
-            AcceptedReply::new(auth, crate::AcceptedStatus::Success(payload)),
-        );
+        let _reply: ReplyBody<&[u8], [u8; 4]> = ReplyBody::Accepted(AcceptedReply::new(
+            auth,
+            crate::AcceptedStatus::Success(payload),
+        ));
     }
 }

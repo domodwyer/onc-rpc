@@ -232,7 +232,6 @@ where
     }
 }
 
-
 impl<'a> TryFrom<&'a [u8]> for RpcMessage<&'a [u8], &'a [u8]> {
     type Error = Error;
 
@@ -1031,10 +1030,8 @@ mod tests {
             // AuthShort
             arbitrary_bytes(0..=200).prop_map(|data| AuthFlavor::AuthShort(data)),
             // Unknown
-            (any::<u32>(), arbitrary_bytes(0..=200)).prop_map(|(id, data)| AuthFlavor::Unknown {
-                id,
-                data: data
-            })
+            (any::<u32>(), arbitrary_bytes(0..=200))
+                .prop_map(|(id, data)| AuthFlavor::Unknown { id, data: data })
         ]
     }
 

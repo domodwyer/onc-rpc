@@ -20,34 +20,34 @@ impl<'a> TryFrom<&mut Cursor<&'a [u8]>> for Opaque<&'a [u8]> {
     /// Deserialises a new [`Opaque`] from `cursor`.
     fn try_from(c: &mut Cursor<&'a [u8]>) -> Result<Opaque<&'a [u8]>, Self::Error> {
         let len = c.read_u32::<BigEndian>()?;
-        let data = *c.get_ref();
-        let start = c.position() as usize;
-        let end = start + len as usize;
-        let padded_end = pad_length(len) + end as u32;
-
-        c.set_position(padded_end as u64);
-        Ok(Opaque {
-            body: &data[start..end],
-        })
+        let data = read_opaque(c, len)?;
+        return Ok(Self { body: data });
     }
 }
 
 /// read bytes from `r`
 /// assuming the length header has already been consumed.
 /// advances `r` with padded length
-pub(crate) fn read_opaque<'a>(r: &mut Cursor<&'a [u8]>, expected_len: u32) -> Result<&'a [u8], Error>{
+pub(crate) fn read_opaque<'a>(
+    r: &mut Cursor<&'a [u8]>,
+    expected_len: u32,
+) -> Result<&'a [u8], Error> {
     let start_pos = r.position() as usize;
     let end_pos = start_pos + expected_len as usize;
     let data = *r.get_ref();
-    let padded_end = pad_length(expected_len) + end_pos as u32;
-    
+    let padded_end = pad_length(expected_len) as usize + end_pos; // prevent overflow when `expected_len` are too large
+
     let total_len = r.get_ref().len();
 
     // If there is not enough data to advances, this function failed
-    if total_len < padded_end as usize {
+    if total_len < padded_end {
         return Err(Error::InvalidAuthData);
     }
-    
+
+    if data[end_pos..padded_end as usize].iter().any(|e| *e != 0) {
+        return Err(Error::InvalidPaddingData);
+    }
+
     r.set_position(padded_end as u64);
     Ok(&data[start_pos..end_pos])
 }
@@ -57,23 +57,21 @@ where
     T: AsRef<[u8]> + Sized,
 {
     pub(crate) fn from(data: T) -> Opaque<T> {
-        Opaque {
-            body: data,
-        }
+        Opaque { body: data }
     }
 
     pub(crate) fn len(&self) -> usize {
         self.body.as_ref().len()
     }
     pub(crate) fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error> {
-            let len = self.as_ref().len() as u32;
-            let _ = buf.write_all(self.as_ref());
-            let fill_bytes = pad_length(len) as usize;
-            const PADDING: [u8; 3] = [0; 3];
-            if fill_bytes > 0 {
-                buf.write_all(&PADDING[..fill_bytes])?;
-            }
-            Ok(())
+        let len = self.as_ref().len() as u32;
+        let _ = buf.write_all(self.as_ref());
+        let fill_bytes = pad_length(len) as usize;
+        const PADDING: [u8; 3] = [0; 3];
+        if fill_bytes > 0 {
+            buf.write_all(&PADDING[..fill_bytes])?;
+        }
+        Ok(())
     }
     pub(crate) fn serialised_len(&self) -> u32 {
         let len = self.as_ref().len() as u32;
@@ -97,17 +95,18 @@ pub(crate) trait SerializeOpaque {
 }
 
 impl<T> SerializeOpaque for T
-where T: AsRef<[u8]>
+where
+    T: AsRef<[u8]>,
 {
     fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error> {
-            let len = self.as_ref().len() as u32;
-            let _ = buf.write_all(self.as_ref());
-            let fill_bytes = pad_length(len) as usize;
-            const PADDING: [u8; 3] = [0; 3];
-            if fill_bytes > 0 {
-                buf.write_all(&PADDING[..fill_bytes])?;
-            }
-            Ok(())
+        let len = self.as_ref().len() as u32;
+        let _ = buf.write_all(self.as_ref());
+        let fill_bytes = pad_length(len) as usize;
+        const PADDING: [u8; 3] = [0; 3];
+        if fill_bytes > 0 {
+            buf.write_all(&PADDING[..fill_bytes])?;
+        }
+        Ok(())
     }
     fn serialised_len(&self) -> u32 {
         let len = self.as_ref().len() as u32;
@@ -181,9 +180,7 @@ mod tests {
         let mydata = Vec::from(data.body);
 
         // 2. erialize
-        let myopaque = Opaque {
-            body: mydata,
-        };
+        let myopaque = Opaque { body: mydata };
         let mut buf: Cursor<Vec<u8>> = Cursor::new(Vec::<u8>::new());
         buf.write_u32::<BigEndian>(myopaque.len() as u32).unwrap();
         let _ = myopaque.serialise_into(&mut buf);
@@ -211,9 +208,7 @@ mod tests {
         let mydata = Vec::from(data.body);
 
         // 2. serialize
-        let myopaque = Opaque {
-            body: mydata,
-        };
+        let myopaque = Opaque { body: mydata };
         let mut buf: Cursor<Vec<u8>> = Cursor::new(Vec::<u8>::new());
         buf.write_u32::<BigEndian>(myopaque.len() as u32).unwrap();
         let _ = myopaque.serialise_into(&mut buf);
