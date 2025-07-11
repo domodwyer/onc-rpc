@@ -69,7 +69,7 @@ where
         buf.write_u32::<BigEndian>(len)?;
 
         // Write the actual payload.
-        let _ = buf.write_all(self.as_ref());
+        buf.write_all(self.as_ref())?;
 
         // Pad the opaque bytes to have a length that is a multiple of 4.
         //
