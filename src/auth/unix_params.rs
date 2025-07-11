@@ -224,8 +224,7 @@ where
         let mut l = std::mem::size_of::<u32>() * 3;
 
         // machine_name length
-        let opaque = Opaque::from(self.machine_name.as_ref());
-        l += opaque.serialised_len() as usize; // length header takes 4 byte
+        l += self.machine_name.serialised_len() as usize;
 
         // gids length prefix u32 + values
         l += (self.gids.deref().len() + 1) * std::mem::size_of::<u32>();
