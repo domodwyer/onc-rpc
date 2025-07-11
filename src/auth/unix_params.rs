@@ -96,10 +96,7 @@ impl<'a> AuthUnixParams<&'a [u8]> {
         let stamp = r.read_u32::<BigEndian>()?;
 
         // Read the string without copying
-        let name = Opaque::try_from(&mut *r)?;
-        if name.len() as u32 > MAX_MACHINE_NAME_LEN {
-            return Err(Error::InvalidLength);
-        }
+        let machine_name = Opaque::<&[u8]>::from_wire(&mut *r, MAX_MACHINE_NAME_LEN as _)?;
 
         // UID & GID
         let uid = r.read_u32::<BigEndian>()?;
@@ -123,7 +120,7 @@ impl<'a> AuthUnixParams<&'a [u8]> {
 
         Ok(AuthUnixParams {
             stamp,
-            machine_name: name,
+            machine_name,
             uid,
             gid,
             gids,
@@ -153,7 +150,7 @@ where
 
         Self {
             stamp,
-            machine_name: Opaque::from(machine_name),
+            machine_name: Opaque::from_user_payload(machine_name),
             uid,
             gid,
             gids: gids.into_iter().collect::<Gids>(),
@@ -164,7 +161,7 @@ where
     /// position by [`AuthUnixParams::serialised_len()`] bytes.
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         buf.write_u32::<BigEndian>(self.stamp)?;
-        Opaque::from(self.machine_name.as_ref()).serialise_into(&mut buf)?;
+        self.machine_name.serialise_into(&mut buf)?;
         buf.write_u32::<BigEndian>(self.uid)?;
         buf.write_u32::<BigEndian>(self.gid)?;
 
@@ -270,7 +267,7 @@ impl TryFrom<crate::Bytes> for AuthUnixParams<crate::Bytes> {
 
         Ok(Self {
             stamp,
-            machine_name: Opaque::from(name),
+            machine_name: Opaque::from_user_payload(name),
             uid,
             gid,
             gids,
@@ -484,7 +481,7 @@ mod tests {
     fn test_long_gids_panic() {
         AuthUnixParams::new(
             42,
-            Opaque::from([].as_slice()),
+            Opaque::from_user_payload([].as_slice()),
             42,
             42,
             [

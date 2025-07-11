@@ -49,6 +49,10 @@ impl<'a> CallBody<&'a [u8], &'a [u8]> {
 
         let data = *r.get_ref();
         let start = r.position() as usize;
+        if start > data.len() {
+            return Err(Error::IncompleteHeader);
+        }
+
         let payload = &data[start..];
 
         Ok(CallBody {

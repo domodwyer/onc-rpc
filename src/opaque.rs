@@ -4,73 +4,76 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::Error;
 
-// Opaque is a Variable-length Array that holds an uninterpreted byte array
-//https://datatracker.ietf.org/doc/html/rfc1014#section-3.12
+/// [`Opaque`] is a wrapper over an opaque / uninterpreted byte array.
+///
+/// See [RFC1014] section 3.12.
+///
+/// [RFC1014]: https://datatracker.ietf.org/doc/html/rfc1014#section-3.12
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct Opaque<T>
-where
-    T: AsRef<[u8]>,
-{
+pub(crate) struct Opaque<T> {
     body: T,
-}
-
-impl<'a> TryFrom<&mut Cursor<&'a [u8]>> for Opaque<&'a [u8]> {
-    type Error = Error;
-
-    /// Deserialises a new [`Opaque`] from `cursor`.
-    fn try_from(c: &mut Cursor<&'a [u8]>) -> Result<Opaque<&'a [u8]>, Self::Error> {
-        let len = c.read_u32::<BigEndian>()?;
-        let data = read_opaque(c, len)?;
-        return Ok(Self { body: data });
-    }
-}
-
-/// read bytes from `r`
-/// assuming the length header has already been consumed.
-/// advances `r` with padded length
-pub(crate) fn read_opaque<'a>(
-    r: &mut Cursor<&'a [u8]>,
-    expected_len: u32,
-) -> Result<&'a [u8], Error> {
-    let start_pos = r.position() as usize;
-    let end_pos = start_pos + expected_len as usize;
-    let data = *r.get_ref();
-    let padded_end = pad_length(expected_len) as usize + end_pos; // prevent overflow when `expected_len` are too large
-
-    let total_len = r.get_ref().len();
-
-    // If there is not enough data to advances, this function failed
-    if total_len < padded_end {
-        return Err(Error::InvalidAuthData);
-    }
-
-    if data[end_pos..padded_end as usize].iter().any(|e| *e != 0) {
-        return Err(Error::InvalidPaddingData);
-    }
-
-    r.set_position(padded_end as u64);
-    Ok(&data[start_pos..end_pos])
 }
 
 impl<T> Opaque<T>
 where
     T: AsRef<[u8]>,
 {
-    pub(crate) fn from(data: T) -> Opaque<T> {
-        Opaque { body: data }
+    /// Construct an [`Opaque`] from the provided user payload (NOT a wire
+    /// payload that includes a length prefix).
+    pub(crate) fn from_user_payload(body: T) -> Opaque<T> {
+        Opaque { body }
     }
 
+    /// Construct an [`Opaque`] from the provided serialised / wire payload
+    /// (that includes a length prefix).
+    ///
+    /// Returns an error without allocating any memory if the payload length
+    /// prefix in `c` exceeds `max_len`.
+    pub(crate) fn from_wire<'a>(
+        c: &mut Cursor<&'a [u8]>,
+        max_len: usize,
+    ) -> Result<Opaque<&'a [u8]>, Error> {
+        let payload_len = c.read_u32::<BigEndian>()?;
+        if payload_len as usize > max_len {
+            return Err(Error::InvalidLength);
+        }
+
+        // Read exactly the number of bytes specified in the payload_len prefix.
+        let data = *c.get_ref();
+        let start = c.position() as usize;
+        let end = start + payload_len as usize;
+
+        // Validate the subslice is within the data buffer
+        if end > data.len() {
+            return Err(Error::InvalidLength);
+        }
+
+        let body = &data[start..end];
+
+        // Discard the sliced buffer and the appropriate amount of padding.
+        c.set_position(end as u64 + pad_length(payload_len) as u64);
+
+        Ok(Opaque { body })
+    }
+
+    /// Return the inner payload.
+    pub(crate) fn into_payload(self) -> T {
+        self.body
+    }
+
+    /// Return the payload length without serialisation overhead.
     pub(crate) fn len(&self) -> usize {
         self.body.as_ref().len()
     }
 
+    /// Serialise the [`Opaque`] into `buf`, including the length prefix bytes.
     pub(crate) fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error> {
         // Write the length prefix.
-        let len = self.as_ref().len() as u32;
+        let len = self.len() as u32;
         buf.write_u32::<BigEndian>(len)?;
 
         // Write the actual payload.
-        buf.write_all(self.as_ref())?;
+        buf.write_all(self.body.as_ref())?;
 
         // Pad the opaque bytes to have a length that is a multiple of 4.
         //
@@ -84,6 +87,8 @@ where
         Ok(())
     }
 
+    /// Return the serialised length of `self`, inclusive of length prefix
+    /// bytes.
     pub(crate) fn serialised_len(&self) -> u32 {
         let payload_len: u32 = self.as_ref().len() as u32;
         4 /* length prefix */ + payload_len + pad_length(payload_len)
@@ -92,7 +97,7 @@ where
 
 impl<T> AsRef<[u8]> for Opaque<T>
 where
-    T: AsRef<[u8]> + Sized,
+    T: AsRef<[u8]>,
 {
     fn as_ref(&self) -> &[u8] {
         self.body.as_ref()
@@ -117,6 +122,7 @@ mod tests {
     use std::io::Cursor;
 
     use hex_literal::hex;
+    use proptest::prelude::*;
 
     use super::Opaque;
 
@@ -127,7 +133,7 @@ mod tests {
         // opaque bytes from hex
         let payload: [u8; 15] = [76, 65, 80, 84, 79, 80, 45, 49, 81, 81, 66, 80, 68, 71, 77];
         let mut cursor = Cursor::new(raw);
-        let data = Opaque::try_from(&mut cursor).unwrap();
+        let data = Opaque::<&[u8]>::from_wire(&mut cursor, 100).unwrap();
         // 4 bytes + 15 bytes (payload) + 1 padding byte
         assert_eq!(raw.len(), 20);
         assert_eq!(data.as_ref().len(), 15);
@@ -154,7 +160,7 @@ mod tests {
         // opaque bytes from hex
         let payload: [u8; 12] = [76, 65, 80, 84, 79, 81, 81, 66, 80, 68, 71, 77];
         let mut cursor = Cursor::new(raw);
-        let data = Opaque::try_from(&mut cursor).unwrap();
+        let data = Opaque::<&[u8]>::from_wire(&mut cursor, 100).unwrap();
         // 4 bytes + 12 bytes (payload)
         assert_eq!(raw.len(), 16);
         assert_eq!(data.as_ref().len(), 12);
@@ -172,5 +178,29 @@ mod tests {
         assert_eq!(buf.get_ref().len(), 16);
         // assert input == output
         assert!(buf.get_ref().iter().zip(raw.iter()).all(|(a, b)| a == b));
+    }
+
+    #[test]
+    fn test_max_bytes() {
+        let payload: [u8; 12] = [255, 65, 80, 84, 79, 81, 81, 66, 80, 68, 71, 77];
+        let mut cursor = Cursor::new(payload.as_slice());
+        Opaque::<&[u8]>::from_wire(&mut cursor, 100).expect_err("should hit max size");
+    }
+
+    proptest! {
+        #[test]
+        fn prop_round_trip(
+            data in prop::collection::vec(any::<u8>(), 0..256),
+        ) {
+            // Serialise the fuzzed payload into "buf".
+            let mut buf = Vec::new();
+            Opaque::from_user_payload(data.clone()).serialise_into(&mut buf).unwrap();
+
+            // Deserialise the payload.
+            let mut c = Cursor::new(buf.as_slice());
+            let got = Opaque::<&[u8]>::from_wire(&mut c, data.len() + 1).unwrap().into_payload();
+
+            assert_eq!(data, got);
+        }
     }
 }

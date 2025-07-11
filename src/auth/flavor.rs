@@ -5,7 +5,7 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::{auth::AuthUnixParams, pad_length, read_opaque, Error, Opaque};
+use crate::{auth::AuthUnixParams, Error, Opaque};
 
 const AUTH_NONE: u32 = 0;
 const AUTH_UNIX: u32 = 1;
@@ -53,41 +53,44 @@ impl<'a> AuthFlavor<&'a [u8]> {
         // Read the auth type
         let flavor = r.read_u32::<BigEndian>()?;
 
-        // Read the auth data length and validate
-        let len = r.read_u32::<BigEndian>()?;
-        if len > 200 {
-            return Err(Error::InvalidLength);
-        }
-
         let flavor = match flavor {
-            AUTH_NONE => AuthFlavor::new_none(r, len)?,
-            AUTH_UNIX => AuthFlavor::new_unix(r, len)?,
-            AUTH_SHORT => AuthFlavor::new_short(r, len)?,
+            AUTH_NONE => AuthFlavor::new_none(r)?,
+            AUTH_UNIX => AuthFlavor::new_unix(r)?,
+            AUTH_SHORT => AuthFlavor::new_short(r)?,
             // 3 => AuthFlavor::AuthDH,
             // 6 => AuthFlavor::RpcSecGSS,
             v => AuthFlavor::Unknown {
                 id: v,
-                data: read_opaque(r, len)?,
+                data: Opaque::<&[u8]>::from_wire(r, 200)?.into_payload(),
             },
         };
 
         Ok(flavor)
     }
 
-    fn new_none(r: &mut Cursor<&'a [u8]>, len: u32) -> Result<Self, Error> {
-        if len == 0 {
+    fn new_none(r: &mut Cursor<&'a [u8]>) -> Result<Self, Error> {
+        let payload = Opaque::<&[u8]>::from_wire(r, 200)?.into_payload();
+        if payload.len() == 0 {
             return Ok(AuthFlavor::AuthNone(None));
         }
 
-        Ok(AuthFlavor::AuthNone(Some(read_opaque(r, len)?)))
+        Ok(AuthFlavor::AuthNone(Some(payload)))
     }
 
-    fn new_unix(r: &mut Cursor<&'a [u8]>, len: u32) -> Result<Self, Error> {
+    fn new_unix(r: &mut Cursor<&'a [u8]>) -> Result<Self, Error> {
+        // TODO(dom): move this into callee
+        let len = r.read_u32::<BigEndian>()?;
+        if len > 200 {
+            return Err(Error::InvalidLength);
+        }
+
         Ok(AuthFlavor::AuthUnix(AuthUnixParams::from_cursor(r, len)?))
     }
 
-    fn new_short(r: &mut Cursor<&'a [u8]>, len: u32) -> Result<Self, Error> {
-        Ok(AuthFlavor::AuthShort(read_opaque(r, len)?))
+    fn new_short(r: &mut Cursor<&'a [u8]>) -> Result<Self, Error> {
+        Ok(AuthFlavor::AuthShort(
+            Opaque::<&[u8]>::from_wire(r, 200)?.into_payload(),
+        ))
     }
 }
 
@@ -110,7 +113,7 @@ where
         match self {
             // Opaque payloads serialise their length prefix internally.
             Self::AuthNone(Some(data)) | Self::AuthShort(data) | Self::Unknown { data, .. } => {
-                Opaque::from(data).serialise_into(&mut buf)
+                Opaque::from_user_payload(data).serialise_into(&mut buf)
             }
             // No payload has a length of 0.
             Self::AuthNone(None) => {
@@ -162,7 +165,7 @@ where
             }
             Self::AuthUnix(ref p) => 4 + p.serialised_len() as u32,
             Self::Unknown { data, .. } | Self::AuthShort(data) | Self::AuthNone(Some(data)) => {
-                Opaque::from(data).serialised_len()
+                Opaque::from_user_payload(data).serialised_len()
             }
         };
 
