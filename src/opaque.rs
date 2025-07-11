@@ -18,10 +18,10 @@ impl<'a> TryFrom<&mut Cursor<&'a [u8]>> for Opaque<&'a [u8]> {
     type Error = Error;
 
     /// Deserialises a new [`Opaque`] from `cursor`.
-    fn try_from(c: &mut Cursor<&'a [u8]>) -> Result<Opaque<&'a [u8]>, Self::Error> {
+    fn try_from(c: &mut Cursor<&'a [u8]>) -> Result<Self, Self::Error> {
         let len = c.read_u32::<BigEndian>()?;
         let data = read_opaque(c, len)?;
-        return Ok(Self { body: data });
+        Ok(Self { body: data })
     }
 }
 
@@ -56,8 +56,8 @@ impl<T> Opaque<T>
 where
     T: AsRef<[u8]> + Sized,
 {
-    pub(crate) fn from(data: T) -> Opaque<T> {
-        Opaque { body: data }
+    pub(crate) fn from(data: T) -> Self {
+        Self { body: data }
     }
 
     pub(crate) fn len(&self) -> usize {
