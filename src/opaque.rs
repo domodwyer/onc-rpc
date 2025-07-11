@@ -1,6 +1,6 @@
 use std::io::{Cursor, Write};
 
-use byteorder::{BigEndian, ReadBytesExt};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::Error;
 
@@ -64,18 +64,27 @@ where
         self.body.as_ref().len()
     }
     pub(crate) fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error> {
+        // Write the length prefix.
         let len = self.as_ref().len() as u32;
+        buf.write_u32::<BigEndian>(len)?;
+
+        // Write the actual payload.
         let _ = buf.write_all(self.as_ref());
+
+        // Pad the opaque bytes to have a length that is a multiple of 4.
+        //
+        // https://datatracker.ietf.org/doc/html/rfc1014#section-3.9
         let fill_bytes = pad_length(len) as usize;
         const PADDING: [u8; 3] = [0; 3];
         if fill_bytes > 0 {
             buf.write_all(&PADDING[..fill_bytes])?;
         }
+
         Ok(())
     }
     pub(crate) fn serialised_len(&self) -> u32 {
-        let len = self.as_ref().len() as u32;
-        len + pad_length(len)
+        let payload_len: u32 = self.as_ref().len() as u32;
+        4 /* length prefix */ + payload_len + pad_length(payload_len)
     }
 }
 
@@ -156,7 +165,6 @@ pub(crate) fn pad_length(l: u32) -> u32 {
 mod tests {
     use std::io::Cursor;
 
-    use byteorder::{BigEndian, WriteBytesExt};
     use hex_literal::hex;
 
     use super::Opaque;
@@ -182,8 +190,7 @@ mod tests {
         // 2. erialize
         let myopaque = Opaque { body: mydata };
         let mut buf: Cursor<Vec<u8>> = Cursor::new(Vec::<u8>::new());
-        buf.write_u32::<BigEndian>(myopaque.len() as u32).unwrap();
-        let _ = myopaque.serialise_into(&mut buf);
+        myopaque.serialise_into(&mut buf).unwrap();
         assert_eq!(buf.get_ref().len(), 20);
         // assert input == output
         assert!(buf.get_ref().iter().zip(raw.iter()).all(|(a, b)| a == b));
@@ -210,8 +217,7 @@ mod tests {
         // 2. serialize
         let myopaque = Opaque { body: mydata };
         let mut buf: Cursor<Vec<u8>> = Cursor::new(Vec::<u8>::new());
-        buf.write_u32::<BigEndian>(myopaque.len() as u32).unwrap();
-        let _ = myopaque.serialise_into(&mut buf);
+        myopaque.serialise_into(&mut buf).unwrap();
         assert_eq!(buf.get_ref().len(), 16);
         // assert input == output
         assert!(buf.get_ref().iter().zip(raw.iter()).all(|(a, b)| a == b));
