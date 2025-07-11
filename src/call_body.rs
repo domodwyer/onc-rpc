@@ -210,10 +210,11 @@ mod tests {
     // auth buffer.
     #[test]
     fn test_differing_payload_type() {
-        let auth = AuthFlavor::AuthNone(Some(vec![42]));
+        let binding = vec![42];
+        let auth = AuthFlavor::AuthNone(Some(binding.as_slice()));
         let payload = [42, 42, 42, 42];
 
-        let _call: CallBody<Vec<u8>, &[u8; 4]> =
+        let _call: CallBody<&[u8], &[u8; 4]> =
             CallBody::new(100000, 42, 13, auth.clone(), auth, &payload);
     }
 }

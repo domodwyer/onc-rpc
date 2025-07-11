@@ -6,7 +6,7 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::{read_slice_bytes, Error};
+use crate::{Error, Opaque};
 
 const MAX_GIDS: usize = 16;
 const MAX_MACHINE_NAME_LEN: u32 = 255;
@@ -75,7 +75,7 @@ where
     T: AsRef<[u8]>,
 {
     stamp: u32,
-    machine_name: T,
+    machine_name: Opaque<T>,
     uid: u32,
     gid: u32,
     gids: Gids,
@@ -95,14 +95,11 @@ impl<'a> AuthUnixParams<&'a [u8]> {
         // Read the stamp
         let stamp = r.read_u32::<BigEndian>()?;
 
-        // Read the variable length name
-        let name_len = r.read_u32::<BigEndian>()?;
-        if name_len > MAX_MACHINE_NAME_LEN {
+        // Read the string without copying
+        let name = Opaque::try_from(&mut *r)?;
+        if name.len() as u32 > MAX_MACHINE_NAME_LEN {
             return Err(Error::InvalidLength);
         }
-
-        // Read the string without copying
-        let name = read_slice_bytes(r, name_len)?;
 
         // UID & GID
         let uid = r.read_u32::<BigEndian>()?;
@@ -156,7 +153,7 @@ where
 
         Self {
             stamp,
-            machine_name,
+            machine_name: Opaque::from(machine_name),
             uid,
             gid,
             gids: gids.into_iter().collect::<Gids>(),
@@ -167,8 +164,10 @@ where
     /// position by [`AuthUnixParams::serialised_len()`] bytes.
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         buf.write_u32::<BigEndian>(self.stamp)?;
-        buf.write_u32::<BigEndian>(self.machine_name.as_ref().len() as u32)?;
-        buf.write_all(self.machine_name.as_ref())?;
+        let opaque = Opaque::from(self.machine_name.as_ref());
+        let machine_name_len = opaque.len() as u32; // length header for opaque
+        buf.write_u32::<BigEndian>(machine_name_len)?;
+        opaque.serialise_into(&mut buf)?;
         buf.write_u32::<BigEndian>(self.uid)?;
         buf.write_u32::<BigEndian>(self.gid)?;
 
@@ -227,8 +226,9 @@ where
         // uid, gid, stamp
         let mut l = std::mem::size_of::<u32>() * 3;
 
-        // machine_name length u32 + bytes
-        l += std::mem::size_of::<u32>() + self.machine_name.as_ref().len();
+        // machine_name length
+        let opaque = Opaque::from(self.machine_name.as_ref());
+        l += opaque.serialised_len() as usize + 4; // length header takes 4 byte
 
         // gids length prefix u32 + values
         l += (self.gids.deref().len() + 1) * std::mem::size_of::<u32>();
@@ -259,7 +259,7 @@ impl TryFrom<crate::Bytes> for AuthUnixParams<crate::Bytes> {
 
         Ok(Self {
             stamp,
-            machine_name: name,
+            machine_name: Opaque::from(name),
             uid,
             gid,
             gids,
@@ -473,7 +473,7 @@ mod tests {
     fn test_long_gids_panic() {
         AuthUnixParams::new(
             42,
-            [],
+            Opaque::from([].as_slice()),
             42,
             42,
             [

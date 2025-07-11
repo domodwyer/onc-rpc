@@ -107,10 +107,11 @@ mod tests {
     // auth buffer.
     #[test]
     fn test_differing_payload_type() {
-        let auth = AuthFlavor::AuthNone(Some(vec![42]));
+        let binding = vec![42];
+        let auth = AuthFlavor::AuthNone(Some(binding.as_slice()));
         let payload = [42, 42, 42, 42];
 
-        let _reply: ReplyBody<Vec<u8>, [u8; 4]> = ReplyBody::Accepted(AcceptedReply::new(
+        let _reply: ReplyBody<&[u8], [u8; 4]> = ReplyBody::Accepted(AcceptedReply::new(
             auth,
             crate::AcceptedStatus::Success(payload),
         ));
