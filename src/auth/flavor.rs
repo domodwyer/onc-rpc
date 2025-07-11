@@ -5,7 +5,7 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::{auth::AuthUnixParams, read_opaque, Error, SerializeOpaque};
+use crate::{auth::AuthUnixParams, pad_length, read_opaque, Error, Opaque};
 
 const AUTH_NONE: u32 = 0;
 const AUTH_UNIX: u32 = 1;
@@ -103,17 +103,25 @@ where
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         buf.write_u32::<BigEndian>(self.id())?;
 
-        // Write the length of the following auth data
-        buf.write_u32::<BigEndian>(self.associated_data_len())?;
+        // Validate the payload length.
         assert!(self.associated_data_len() <= 200);
 
         // Write the actual auth data
         match self {
-            Self::AuthNone(Some(d)) => d.serialise_into(&mut buf),
-            Self::AuthNone(None) => Ok(()),
-            Self::AuthUnix(p) => p.serialise_into(buf),
-            Self::AuthShort(d) => d.serialise_into(&mut buf),
-            Self::Unknown { id: _id, data } => data.serialise_into(&mut buf),
+            // Opaque payloads serialise their length prefix internally.
+            Self::AuthNone(Some(data)) | Self::AuthShort(data) | Self::Unknown { data, .. } => {
+                Opaque::from(data).serialise_into(&mut buf)
+            }
+            // No payload has a length of 0.
+            Self::AuthNone(None) => {
+                buf.write_u32::<BigEndian>(0)?;
+                Ok(())
+            }
+            // Auth unix payloads have their length serialised by the caller.
+            Self::AuthUnix(p) => {
+                buf.write_u32::<BigEndian>(p.serialised_len())?;
+                p.serialise_into(buf)
+            }
         }
     }
 
@@ -132,7 +140,7 @@ where
         match self {
             Self::AuthNone(Some(d)) => d.as_ref().len() as u32,
             Self::AuthNone(None) => 0,
-            Self::AuthUnix(p) => p.serialised_len(),
+            Self::AuthUnix(p) => p.associated_data_len(),
             Self::AuthShort(d) => d.as_ref().len() as u32,
             Self::Unknown { id: _id, data } => data.as_ref().len() as u32,
         }
@@ -146,23 +154,15 @@ where
         // Flavor discriminator
         l += 4;
 
-        // Length field
-        l += 4;
-
         // Add the flavor size
         l += match self {
-            Self::AuthNone(ref data) => {
-                // Data length + length prefix u32
-                data.as_ref().map_or(0, |d| d.serialised_len() as usize)
+            Self::AuthNone(None) => {
+                // length prefix u32 + data length
+                4 + 0
             }
-            Self::AuthUnix(ref p) => p.serialised_len() as usize,
-            Self::AuthShort(data) => {
-                // Data length
-                data.serialised_len() as usize
-            }
-            Self::Unknown { id: _id, data } => {
-                // Data length + length prefix u32
-                data.serialised_len() as usize
+            Self::AuthUnix(ref p) => 4 + p.serialised_len() as u32,
+            Self::Unknown { data, .. } | Self::AuthShort(data) | Self::AuthNone(Some(data)) => {
+                Opaque::from(data).serialised_len()
             }
         };
 
@@ -245,7 +245,7 @@ mod tests {
         let f: AuthFlavor<&'a [u8]> = RAW.as_ref().try_into().expect("failed to parse message");
         assert_eq!(f.serialised_len(), 44);
         assert_eq!(f.id(), AUTH_UNIX);
-        assert_eq!(f.associated_data_len(), 44 - 4 - 4);
+        assert_eq!(f.associated_data_len(), 27);
 
         let params = match f {
             AuthFlavor::AuthUnix(ref p) => p,
@@ -299,7 +299,7 @@ mod tests {
         let f: AuthFlavor<&'a [u8]> = RAW.as_ref().try_into().expect("failed to parse message");
         assert_eq!(f.serialised_len(), 92);
         assert_eq!(f.id(), AUTH_UNIX);
-        assert_eq!(f.associated_data_len(), 92 - 4 - 4);
+        assert_eq!(f.associated_data_len(), 92 - 4 - 4 - 4 - 4); // - auth flavor - auth size - gids length - name length
 
         let params = match f {
             AuthFlavor::AuthUnix(ref p) => p,

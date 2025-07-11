@@ -54,7 +54,7 @@ pub(crate) fn read_opaque<'a>(
 
 impl<T> Opaque<T>
 where
-    T: AsRef<[u8]> + Sized,
+    T: AsRef<[u8]>,
 {
     pub(crate) fn from(data: T) -> Opaque<T> {
         Opaque { body: data }
@@ -63,6 +63,7 @@ where
     pub(crate) fn len(&self) -> usize {
         self.body.as_ref().len()
     }
+
     pub(crate) fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error> {
         // Write the length prefix.
         let len = self.as_ref().len() as u32;
@@ -82,6 +83,7 @@ where
 
         Ok(())
     }
+
     pub(crate) fn serialised_len(&self) -> u32 {
         let payload_len: u32 = self.as_ref().len() as u32;
         4 /* length prefix */ + payload_len + pad_length(payload_len)
@@ -96,57 +98,6 @@ where
         self.body.as_ref()
     }
 }
-
-pub(crate) trait SerializeOpaque {
-    fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error>;
-
-    fn serialised_len(&self) -> u32;
-}
-
-impl<T> SerializeOpaque for T
-where
-    T: AsRef<[u8]>,
-{
-    fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error> {
-        let len = self.as_ref().len() as u32;
-        let _ = buf.write_all(self.as_ref());
-        let fill_bytes = pad_length(len) as usize;
-        const PADDING: [u8; 3] = [0; 3];
-        if fill_bytes > 0 {
-            buf.write_all(&PADDING[..fill_bytes])?;
-        }
-        Ok(())
-    }
-    fn serialised_len(&self) -> u32 {
-        let len = self.as_ref().len() as u32;
-        len + pad_length(len)
-    }
-}
-
-// impl<'a, T> SerializeOpaque for Opaque<'a, T>
-// where
-//     T: AsRef<[u8]> + Sized,
-// {
-//     /// Serialises this `Opaque` into `buf`, advancing the cursor position by
-//     /// [`Opaque::serialised_len()`] bytes.
-//     fn serialise_into<W: Write>(&self, buf: &mut W) -> Result<(), std::io::Error> {
-//         let len = self.body.as_ref().len() as u32;
-//         buf.write_u32::<BigEndian>(len)?;
-
-//         let _ = buf.write_all(self.body.as_ref());
-//         let fill_bytes = pad_length(len);
-//         if fill_bytes > 0 {
-//             buf.write_all(vec![0_u8; fill_bytes as usize].as_slice())?;
-//         }
-//         Ok(())
-//     }
-
-//     /// Returns the on-wire length of this opaque data once serialised.
-//     fn serialised_len(&self) -> u32 {
-//         let len = self.body.as_ref().len() as u32;
-//         len + pad_length(len)
-//     }
-// }
 
 // https://datatracker.ietf.org/doc/html/rfc1014#section-4
 // (5) Why must variable-length data be padded with zeros?

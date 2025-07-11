@@ -231,6 +231,21 @@ where
 
         l as u32
     }
+
+    /// Returns the byte sizes of the fields within this data (excluding
+    /// serialisation overhead).
+    pub(crate) fn associated_data_len(&self) -> u32 {
+        // uid, gid, stamp
+        let mut l = std::mem::size_of::<u32>() * 3;
+
+        // machine_name without length prefix
+        l += self.machine_name.len() as usize;
+
+        // gids without length prefix
+        l += self.gids.deref().len() * std::mem::size_of::<u32>();
+
+        l as u32
+    }
 }
 
 #[cfg(feature = "bytes")]
