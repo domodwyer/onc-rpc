@@ -254,7 +254,7 @@ impl TryFrom<crate::Bytes> for AuthUnixParams<crate::Bytes> {
 
         let stamp = v.try_u32()?;
 
-        let name = v.try_array(16)?;
+        let name = v.try_array(MAX_MACHINE_NAME_LEN as _)?;
         let uid = v.try_u32()?;
         let gid = v.try_u32()?;
 
