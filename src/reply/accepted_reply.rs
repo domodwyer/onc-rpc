@@ -178,6 +178,10 @@ impl<'a> AcceptedStatus<&'a [u8]> {
         let start = r.position() as usize;
         let payload = &data[start..];
 
+        // NOTE: this purposely does not use an Opaque type as the opaque data
+        // is not described, is protocol specific and recommended to be of
+        // length 0.
+
         AcceptedStatus::Success(payload)
     }
 }

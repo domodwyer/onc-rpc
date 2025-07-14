@@ -47,6 +47,9 @@ impl<'a> CallBody<&'a [u8], &'a [u8]> {
         let auth_credentials = AuthFlavor::from_cursor(r)?;
         let auth_verifier = AuthFlavor::from_cursor(r)?;
 
+        // NOTE: this payload does not use an Opaque as it is not defined as an
+        // opaque byte array (that necessitates padding) in the spec.
+
         let data = *r.get_ref();
         let start = r.position() as usize;
         if start > data.len() {
