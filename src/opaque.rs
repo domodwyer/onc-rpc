@@ -58,7 +58,7 @@ where
     }
 
     /// Return the inner payload.
-    pub(crate) fn into_payload(self) -> T {
+    pub(crate) fn into_inner(self) -> T {
         self.body
     }
 
@@ -199,7 +199,7 @@ mod tests {
 
             // Deserialise the payload.
             let mut c = Cursor::new(buf.as_slice());
-            let got = Opaque::<&[u8]>::from_wire(&mut c, data.len() + 1).unwrap().into_payload();
+            let got = Opaque::<&[u8]>::from_wire(&mut c, data.len() + 1).unwrap().into_inner();
 
             assert_eq!(data, got);
         }

@@ -61,7 +61,7 @@ impl<'a> AuthFlavor<&'a [u8]> {
             // 6 => AuthFlavor::RpcSecGSS,
             v => AuthFlavor::Unknown {
                 id: v,
-                data: Opaque::<&[u8]>::from_wire(r, 200)?.into_payload(),
+                data: Opaque::<&[u8]>::from_wire(r, 200)?.into_inner(),
             },
         };
 
@@ -69,7 +69,7 @@ impl<'a> AuthFlavor<&'a [u8]> {
     }
 
     fn new_none(r: &mut Cursor<&'a [u8]>) -> Result<Self, Error> {
-        let payload = Opaque::<&[u8]>::from_wire(r, 200)?.into_payload();
+        let payload = Opaque::<&[u8]>::from_wire(r, 200)?.into_inner();
         if payload.len() == 0 {
             return Ok(AuthFlavor::AuthNone(None));
         }
@@ -89,7 +89,7 @@ impl<'a> AuthFlavor<&'a [u8]> {
 
     fn new_short(r: &mut Cursor<&'a [u8]>) -> Result<Self, Error> {
         Ok(AuthFlavor::AuthShort(
-            Opaque::<&[u8]>::from_wire(r, 200)?.into_payload(),
+            Opaque::<&[u8]>::from_wire(r, 200)?.into_inner(),
         ))
     }
 }
