@@ -42,16 +42,17 @@ where
         let data = *c.get_ref();
         let start = c.position() as usize;
         let end = start + payload_len as usize;
+        let end_plus_padding = end + pad_length(payload_len as u32) as usize;
 
         // Validate the subslice is within the data buffer
-        if end > data.len() {
+        if end_plus_padding > data.len() {
             return Err(Error::InvalidLength);
         }
 
         let body = &data[start..end];
 
         // Discard the sliced buffer and the appropriate amount of padding.
-        c.set_position(end as u64 + pad_length(payload_len) as u64);
+        c.set_position(end_plus_padding as u64);
 
         Ok(Opaque { body })
     }

@@ -22,21 +22,22 @@ impl BytesReaderExt for Bytes {
     }
 
     /// Try to read an opaque XDR array, prefixed by a length u32.
-    fn try_array(&mut self, max: usize) -> Result<Self, Error> {
-        let len = self.try_u32()? as usize;
-        let padded_len = len + pad_length(len as u32) as usize;
-
-        if self.remaining() < padded_len || padded_len > max {
+    fn try_array(&mut self, max_len: usize) -> Result<Self, Error> {
+        let payload_len = self.try_u32()? as usize;
+        if payload_len as usize > max_len {
             return Err(Error::InvalidLength);
         }
 
-        if self.as_ref()[len..padded_len].iter().any(|e| *e != 0) {
-            return Err(Error::InvalidPaddingData);
+        let end_plus_padding = payload_len + pad_length(payload_len as u32) as usize;
+
+        // Validate the subslice is within the data buffer
+        if end_plus_padding > self.len() {
+            return Err(Error::InvalidLength);
         }
 
-        let data = self.slice(..len);
-        self.advance(padded_len);
+        let body = self.slice(..payload_len);
+        self.advance(end_plus_padding);
 
-        Ok(data)
+        Ok(body)
     }
 }
