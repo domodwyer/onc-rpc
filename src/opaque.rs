@@ -24,39 +24,6 @@ where
         Opaque { body }
     }
 
-    /// Construct an [`Opaque`] from the provided serialised / wire payload
-    /// (that includes a length prefix).
-    ///
-    /// Returns an error without allocating any memory if the payload length
-    /// prefix in `c` exceeds `max_len`.
-    pub(crate) fn from_wire<'a>(
-        c: &mut Cursor<&'a [u8]>,
-        max_len: usize,
-    ) -> Result<Opaque<&'a [u8]>, Error> {
-        let payload_len = c.read_u32::<BigEndian>()?;
-        if payload_len as usize > max_len {
-            return Err(Error::InvalidLength);
-        }
-
-        // Read exactly the number of bytes specified in the payload_len prefix.
-        let data = *c.get_ref();
-        let start = c.position() as usize;
-        let end = start + payload_len as usize;
-        let end_plus_padding = end + pad_length(payload_len as u32) as usize;
-
-        // Validate the subslice is within the data buffer
-        if end_plus_padding > data.len() {
-            return Err(Error::InvalidLength);
-        }
-
-        let body = &data[start..end];
-
-        // Discard the sliced buffer and the appropriate amount of padding.
-        c.set_position(end_plus_padding as u64);
-
-        Ok(Opaque { body })
-    }
-
     /// Return the inner payload.
     pub(crate) fn into_inner(self) -> T {
         self.body
@@ -93,6 +60,41 @@ where
     pub(crate) fn serialised_len(&self) -> u32 {
         let payload_len: u32 = self.as_ref().len() as u32;
         4 /* length prefix */ + payload_len + pad_length(payload_len)
+    }
+}
+
+impl Opaque<&[u8]> {
+    /// Construct an [`Opaque`] from the provided serialised / wire payload
+    /// (that includes a length prefix).
+    ///
+    /// Returns an error without allocating any memory if the payload length
+    /// prefix in `c` exceeds `max_len`.
+    pub(crate) fn from_wire<'a>(
+        c: &mut Cursor<&'a [u8]>,
+        max_len: usize,
+    ) -> Result<Opaque<&'a [u8]>, Error> {
+        let payload_len = c.read_u32::<BigEndian>()?;
+        if payload_len as usize > max_len {
+            return Err(Error::InvalidLength);
+        }
+
+        // Read exactly the number of bytes specified in the payload_len prefix.
+        let data = *c.get_ref();
+        let start = c.position() as usize;
+        let end = start + payload_len as usize;
+        let end_plus_padding = end + pad_length(payload_len as u32) as usize;
+
+        // Validate the subslice is within the data buffer
+        if end_plus_padding > data.len() {
+            return Err(Error::InvalidLength);
+        }
+
+        let body = &data[start..end];
+
+        // Discard the sliced buffer and the appropriate amount of padding.
+        c.set_position(end_plus_padding as u64);
+
+        Ok(Opaque { body })
     }
 }
 
@@ -134,7 +136,7 @@ mod tests {
         // opaque bytes from hex
         let payload: [u8; 15] = [76, 65, 80, 84, 79, 80, 45, 49, 81, 81, 66, 80, 68, 71, 77];
         let mut cursor = Cursor::new(raw);
-        let data = Opaque::<&[u8]>::from_wire(&mut cursor, 100).unwrap();
+        let data = Opaque::from_wire(&mut cursor, 100).unwrap();
         // 4 bytes + 15 bytes (payload) + 1 padding byte
         assert_eq!(raw.len(), 20);
         assert_eq!(data.as_ref().len(), 15);
@@ -161,7 +163,7 @@ mod tests {
         // opaque bytes from hex
         let payload: [u8; 12] = [76, 65, 80, 84, 79, 81, 81, 66, 80, 68, 71, 77];
         let mut cursor = Cursor::new(raw);
-        let data = Opaque::<&[u8]>::from_wire(&mut cursor, 100).unwrap();
+        let data = Opaque::from_wire(&mut cursor, 100).unwrap();
         // 4 bytes + 12 bytes (payload)
         assert_eq!(raw.len(), 16);
         assert_eq!(data.as_ref().len(), 12);
@@ -185,7 +187,7 @@ mod tests {
     fn test_max_bytes() {
         let payload: [u8; 12] = [255, 65, 80, 84, 79, 81, 81, 66, 80, 68, 71, 77];
         let mut cursor = Cursor::new(payload.as_slice());
-        Opaque::<&[u8]>::from_wire(&mut cursor, 100).expect_err("should hit max size");
+        Opaque::from_wire(&mut cursor, 100).expect_err("should hit max size");
     }
 
     proptest! {
@@ -199,7 +201,7 @@ mod tests {
 
             // Deserialise the payload.
             let mut c = Cursor::new(buf.as_slice());
-            let got = Opaque::<&[u8]>::from_wire(&mut c, data.len() + 1).unwrap().into_inner();
+            let got = Opaque::from_wire(&mut c, data.len() + 1).unwrap().into_inner();
 
             assert_eq!(data, got);
         }

@@ -96,7 +96,7 @@ impl<'a> AuthUnixParams<&'a [u8]> {
         let stamp = r.read_u32::<BigEndian>()?;
 
         // Read the string without copying
-        let machine_name = Opaque::<&[u8]>::from_wire(&mut *r, MAX_MACHINE_NAME_LEN as _)?;
+        let machine_name = Opaque::from_wire(&mut *r, MAX_MACHINE_NAME_LEN as _)?;
 
         // UID & GID
         let uid = r.read_u32::<BigEndian>()?;
