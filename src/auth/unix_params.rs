@@ -236,10 +236,10 @@ where
         let mut l = std::mem::size_of::<u32>() * 3;
 
         // machine_name without length prefix
-        l += self.machine_name.len() as usize;
+        l += self.machine_name.len();
 
         // gids without length prefix
-        l += self.gids.deref().len() * std::mem::size_of::<u32>();
+        l += std::mem::size_of_val(self.gids.deref());
 
         l as u32
     }

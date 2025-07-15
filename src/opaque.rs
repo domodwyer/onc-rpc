@@ -20,8 +20,8 @@ where
 {
     /// Construct an [`Opaque`] from the provided user payload (NOT a wire
     /// payload that includes a length prefix).
-    pub(crate) fn from_user_payload(body: T) -> Opaque<T> {
-        Opaque { body }
+    pub(crate) fn from_user_payload(body: T) -> Self {
+        Self { body }
     }
 
     /// Return the inner payload.
@@ -82,7 +82,7 @@ impl Opaque<&[u8]> {
         let data = *c.get_ref();
         let start = c.position() as usize;
         let end = start + payload_len as usize;
-        let end_plus_padding = end + pad_length(payload_len as u32) as usize;
+        let end_plus_padding = end + pad_length(payload_len) as usize;
 
         // Validate the subslice is within the data buffer
         if end_plus_padding > data.len() {

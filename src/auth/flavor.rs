@@ -70,7 +70,7 @@ impl<'a> AuthFlavor<&'a [u8]> {
 
     fn new_none(r: &mut Cursor<&'a [u8]>) -> Result<Self, Error> {
         let payload = Opaque::from_wire(r, 200)?.into_inner();
-        if payload.len() == 0 {
+        if payload.is_empty() {
             return Ok(AuthFlavor::AuthNone(None));
         }
 
@@ -159,17 +159,18 @@ where
 
         // Add the flavor size
         l += match self {
+            #[allow(clippy::identity_op)]
             Self::AuthNone(None) => {
                 // length prefix u32 + data length
                 4 + 0
             }
-            Self::AuthUnix(ref p) => 4 + p.serialised_len() as u32,
+            Self::AuthUnix(ref p) => 4 + p.serialised_len(),
             Self::Unknown { data, .. } | Self::AuthShort(data) | Self::AuthNone(Some(data)) => {
                 Opaque::from_user_payload(data).serialised_len()
             }
         };
 
-        l as u32
+        l
     }
 }
 

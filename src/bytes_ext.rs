@@ -24,7 +24,7 @@ impl BytesReaderExt for Bytes {
     /// Try to read an opaque XDR array, prefixed by a length u32.
     fn try_array(&mut self, max_len: usize) -> Result<Self, Error> {
         let payload_len = self.try_u32()? as usize;
-        if payload_len as usize > max_len {
+        if payload_len > max_len {
             return Err(Error::InvalidLength);
         }
 
