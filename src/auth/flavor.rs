@@ -5,7 +5,7 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::{auth::AuthUnixParams, read_slice_bytes, Error};
+use crate::{auth::AuthUnixParams, Error, Opaque};
 
 const AUTH_NONE: u32 = 0;
 const AUTH_UNIX: u32 = 1;
@@ -53,41 +53,44 @@ impl<'a> AuthFlavor<&'a [u8]> {
         // Read the auth type
         let flavor = r.read_u32::<BigEndian>()?;
 
-        // Read the auth data length and validate
-        let len = r.read_u32::<BigEndian>()?;
-        if len > 200 {
-            return Err(Error::InvalidLength);
-        }
-
         let flavor = match flavor {
-            AUTH_NONE => AuthFlavor::new_none(r, len)?,
-            AUTH_UNIX => AuthFlavor::new_unix(r, len)?,
-            AUTH_SHORT => AuthFlavor::new_short(r, len)?,
+            AUTH_NONE => AuthFlavor::new_none(r)?,
+            AUTH_UNIX => AuthFlavor::new_unix(r)?,
+            AUTH_SHORT => AuthFlavor::new_short(r)?,
             // 3 => AuthFlavor::AuthDH,
             // 6 => AuthFlavor::RpcSecGSS,
             v => AuthFlavor::Unknown {
                 id: v,
-                data: read_slice_bytes(r, len)?,
+                data: Opaque::from_wire(r, 200)?.into_inner(),
             },
         };
 
         Ok(flavor)
     }
 
-    fn new_none(r: &mut Cursor<&'a [u8]>, len: u32) -> Result<Self, Error> {
-        if len == 0 {
+    fn new_none(r: &mut Cursor<&'a [u8]>) -> Result<Self, Error> {
+        let payload = Opaque::from_wire(r, 200)?.into_inner();
+        if payload.is_empty() {
             return Ok(AuthFlavor::AuthNone(None));
         }
 
-        Ok(AuthFlavor::AuthNone(Some(read_slice_bytes(r, len)?)))
+        Ok(AuthFlavor::AuthNone(Some(payload)))
     }
 
-    fn new_unix(r: &mut Cursor<&'a [u8]>, len: u32) -> Result<Self, Error> {
+    fn new_unix(r: &mut Cursor<&'a [u8]>) -> Result<Self, Error> {
+        // TODO(dom): move this into callee
+        let len = r.read_u32::<BigEndian>()?;
+        if len > 200 {
+            return Err(Error::InvalidLength);
+        }
+
         Ok(AuthFlavor::AuthUnix(AuthUnixParams::from_cursor(r, len)?))
     }
 
-    fn new_short(r: &mut Cursor<&'a [u8]>, len: u32) -> Result<Self, Error> {
-        Ok(AuthFlavor::AuthShort(read_slice_bytes(r, len)?))
+    fn new_short(r: &mut Cursor<&'a [u8]>) -> Result<Self, Error> {
+        Ok(AuthFlavor::AuthShort(
+            Opaque::from_wire(r, 200)?.into_inner(),
+        ))
     }
 }
 
@@ -103,17 +106,25 @@ where
     pub fn serialise_into<W: Write>(&self, mut buf: W) -> Result<(), std::io::Error> {
         buf.write_u32::<BigEndian>(self.id())?;
 
-        // Write the length of the following auth data
-        buf.write_u32::<BigEndian>(self.associated_data_len())?;
+        // Validate the payload length.
         assert!(self.associated_data_len() <= 200);
 
         // Write the actual auth data
         match self {
-            Self::AuthNone(Some(d)) => buf.write_all(d.as_ref()),
-            Self::AuthNone(None) => Ok(()),
-            Self::AuthUnix(p) => p.serialise_into(buf),
-            Self::AuthShort(d) => buf.write_all(d.as_ref()),
-            Self::Unknown { id: _id, data } => buf.write_all(data.as_ref()),
+            // Opaque payloads serialise their length prefix internally.
+            Self::AuthNone(Some(data)) | Self::AuthShort(data) | Self::Unknown { data, .. } => {
+                Opaque::from_user_payload(data).serialise_into(&mut buf)
+            }
+            // No payload has a length of 0.
+            Self::AuthNone(None) => {
+                buf.write_u32::<BigEndian>(0)?;
+                Ok(())
+            }
+            // Auth unix payloads have their length serialised by the caller.
+            Self::AuthUnix(p) => {
+                buf.write_u32::<BigEndian>(p.serialised_len())?;
+                p.serialise_into(buf)
+            }
         }
     }
 
@@ -132,7 +143,7 @@ where
         match self {
             Self::AuthNone(Some(d)) => d.as_ref().len() as u32,
             Self::AuthNone(None) => 0,
-            Self::AuthUnix(p) => p.serialised_len(),
+            Self::AuthUnix(p) => p.associated_data_len(),
             Self::AuthShort(d) => d.as_ref().len() as u32,
             Self::Unknown { id: _id, data } => data.as_ref().len() as u32,
         }
@@ -146,27 +157,20 @@ where
         // Flavor discriminator
         l += 4;
 
-        // Length field
-        l += 4;
-
         // Add the flavor size
         l += match self {
-            Self::AuthNone(ref data) => {
-                // Data length + length prefix u32
-                data.as_ref().map_or(0, |d| d.as_ref().len())
+            #[allow(clippy::identity_op)]
+            Self::AuthNone(None) => {
+                // length prefix u32 + data length
+                4 + 0
             }
-            Self::AuthUnix(ref p) => p.serialised_len() as usize,
-            Self::AuthShort(data) => {
-                // Data length
-                data.as_ref().len()
-            }
-            Self::Unknown { id: _id, data } => {
-                // Data length + length prefix u32
-                data.as_ref().len()
+            Self::AuthUnix(ref p) => 4 + p.serialised_len(),
+            Self::Unknown { data, .. } | Self::AuthShort(data) | Self::AuthNone(Some(data)) => {
+                Opaque::from_user_payload(data).serialised_len()
             }
         };
 
-        l as u32
+        l
     }
 }
 
@@ -226,6 +230,42 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_auth_unix_unaligned_machinename<'a>() {
+        #[rustfmt::skip]
+        // Credentials
+        //     Flavor: AUTH_UNIX (1)
+        //     Length: 36
+        //     Stamp: 0x00000000
+        //     Machine Name: LAPTOP-1QQBPDGM
+        //         length: 15
+        //         contents: LAPTOP-1QQBPDGM
+        //     UID: 0
+        //     GID: 0
+        //     Auxiliary GIDs (0)
+        const RAW: [u8; 44] = hex!(
+            "0000000100000024000000000000000f4c4150544f502d315151425044474d00000000000000000000000000"
+        );
+
+        let f: AuthFlavor<&'a [u8]> = RAW.as_ref().try_into().expect("failed to parse message");
+        assert_eq!(f.serialised_len(), 44);
+        assert_eq!(f.id(), AUTH_UNIX);
+        assert_eq!(f.associated_data_len(), 27);
+
+        let params = match f {
+            AuthFlavor::AuthUnix(ref p) => p,
+            _ => panic!("wrong auth"),
+        };
+
+        assert_eq!(params.uid(), 0);
+
+        let mut c = Cursor::new(Vec::new());
+        f.serialise_into(&mut c).expect("serialise failed");
+
+        let buf = c.into_inner();
+        assert_eq!(buf.as_slice(), RAW.as_ref());
+    }
+
+    #[test]
     fn test_auth_unix<'a>() {
         #[rustfmt::skip]
         // Credentials
@@ -263,7 +303,7 @@ mod tests {
         let f: AuthFlavor<&'a [u8]> = RAW.as_ref().try_into().expect("failed to parse message");
         assert_eq!(f.serialised_len(), 92);
         assert_eq!(f.id(), AUTH_UNIX);
-        assert_eq!(f.associated_data_len(), 92 - 4 - 4);
+        assert_eq!(f.associated_data_len(), 92 - 4 - 4 - 4 - 4); // - auth flavor - auth size - gids length - name length
 
         let params = match f {
             AuthFlavor::AuthUnix(ref p) => p,

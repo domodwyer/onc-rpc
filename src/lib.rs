@@ -19,6 +19,9 @@
 mod errors;
 pub use errors::Error;
 
+mod opaque;
+pub(crate) use opaque::*;
+
 mod rpc_message;
 pub use rpc_message::*;
 

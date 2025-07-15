@@ -366,24 +366,9 @@ pub fn expected_message_len(data: &[u8]) -> Result<u32, Error> {
     Ok((header & !LAST_FRAGMENT_BIT) + 4)
 }
 
-/// Returns a subslice of len bytes from c without copying if it is safe to do
-/// so.
-pub(crate) fn read_slice_bytes<'a>(c: &mut Cursor<&'a [u8]>, len: u32) -> Result<&'a [u8], Error> {
-    let data = *c.get_ref();
-    let start = c.position() as usize;
-    let end = start + len as usize;
-
-    // Validate the subslice is within the data buffer
-    if end > data.len() {
-        return Err(Error::InvalidLength);
-    }
-
-    c.set_position(end as u64);
-    Ok(&data[start..end])
-}
-
 #[cfg(test)]
 mod tests {
+    use crate::Opaque;
     use std::ops::RangeInclusive;
 
     use hex_literal::hex;
@@ -448,10 +433,11 @@ mod tests {
     // auth buffer.
     #[test]
     fn test_differing_payload_type() {
-        let auth = AuthFlavor::AuthNone(Some(vec![42]));
+        let binding = vec![42];
+        let auth = AuthFlavor::AuthNone(Some(binding.as_slice()));
         let payload = [42, 42, 42, 42];
 
-        let _msg: RpcMessage<Vec<u8>, &[u8; 4]> = RpcMessage::new(
+        let _msg: RpcMessage<&[u8], &[u8; 4]> = RpcMessage::new(
             4242,
             MessageType::Call(CallBody::new(100000, 42, 13, auth.clone(), auth, &payload)),
         );
@@ -674,14 +660,14 @@ mod tests {
 
         const RAW: [u8; 288] = hex!(
             "8000011c265ec0fd0000000000000002000186a300000004000000010000000100
-			0000540000000000000000000001f50000001400000010000001f50000000c00000
-			0140000003d0000004f000000500000005100000062000002bd0000002100000064
-			000000cc000000fa0000018b0000018e0000018f00000000000000000000000c736
-			574636c696420202020200000000000000001000000235ed267a200006839000000
-			4b00000000f8ffc247f4fb10020801c0a801bd00000000000000003139322e31363
-			82e312e3138393a2f686f6d652f646f6d002f55736572732f646f6d2f4465736b74
-			6f702f6d6f756e7400004e4653430000000374637000000000153139322e3136382
-			e312e3138382e3233382e32333500000000000002"
+    		0000540000000000000000000001f50000001400000010000001f50000000c00000
+    		0140000003d0000004f000000500000005100000062000002bd0000002100000064
+    		000000cc000000fa0000018b0000018e0000018f00000000000000000000000c736
+    		574636c696420202020200000000000000001000000235ed267a200006839000000
+    		4b00000000f8ffc247f4fb10020801c0a801bd00000000000000003139322e31363
+    		82e312e3138393a2f686f6d652f646f6d002f55736572732f646f6d2f4465736b74
+    		6f702f6d6f756e7400004e4653430000000374637000000000153139322e3136382
+    		e312e3138382e3233382e32333500000000000002"
         );
 
         let static_raw: &'static [u8] = Box::leak(Box::new(RAW));
@@ -720,10 +706,10 @@ mod tests {
 
         let payload = hex!(
             "0000000c736574636c696420202020200000000000000001000000235ed267a200
-			0068390000004b00000000f8ffc247f4fb10020801c0a801bd00000000000000003
-			139322e3136382e312e3138393a2f686f6d652f646f6d002f55736572732f646f6d
-			2f4465736b746f702f6d6f756e7400004e465343000000037463700000000015313
-			9322e3136382e312e3138382e3233382e32333500000000000002"
+    		0068390000004b00000000f8ffc247f4fb10020801c0a801bd00000000000000003
+    		139322e3136382e312e3138393a2f686f6d652f646f6d002f55736572732f646f6d
+    		2f4465736b746f702f6d6f756e7400004e465343000000037463700000000015313
+    		9322e3136382e312e3138382e3233382e32333500000000000002"
         );
 
         assert_eq!(body.payload(), payload.as_ref());
@@ -994,7 +980,7 @@ mod tests {
         let buf1 = [1; 8];
         let ioslice = IoSlice::new(&buf1);
 
-        let body = CallBody::<&[u8], _>::new(
+        let body = CallBody::<Opaque<&[u8]>, _>::new(
             1,
             2,
             3,
@@ -1037,14 +1023,15 @@ mod tests {
     fn arbitrary_auth_flavor() -> impl Strategy<Value = AuthFlavor<Vec<u8>>> {
         prop_oneof![
             // AuthNone
-            of(arbitrary_bytes(0..=200)).prop_map(AuthFlavor::AuthNone),
+            of(arbitrary_bytes(0..=200))
+                .prop_map(|opt_data| AuthFlavor::AuthNone(opt_data.map(|data| data))),
             // AuthUnix
             arbitrary_unix_auth_params().prop_map(AuthFlavor::AuthUnix),
             // AuthShort
-            arbitrary_bytes(0..=200).prop_map(AuthFlavor::AuthShort),
+            arbitrary_bytes(0..=200).prop_map(|data| AuthFlavor::AuthShort(data)),
             // Unknown
             (any::<u32>(), arbitrary_bytes(0..=200))
-                .prop_map(|(id, data)| AuthFlavor::Unknown { id, data })
+                .prop_map(|(id, data)| AuthFlavor::Unknown { id, data: data })
         ]
     }
 

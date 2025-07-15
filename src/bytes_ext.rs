@@ -1,6 +1,6 @@
 use bytes::{Buf, Bytes};
 
-use crate::Error;
+use crate::{pad_length, Error};
 
 /// An extension to the `bytes::Bytes` type, providing a non-panic alternative
 /// to the `get_u32` method, and an array helper.
@@ -22,16 +22,22 @@ impl BytesReaderExt for Bytes {
     }
 
     /// Try to read an opaque XDR array, prefixed by a length u32.
-    fn try_array(&mut self, max: usize) -> Result<Self, Error> {
-        let len = self.try_u32()? as usize;
-
-        if self.remaining() < len || len > max {
+    fn try_array(&mut self, max_len: usize) -> Result<Self, Error> {
+        let payload_len = self.try_u32()? as usize;
+        if payload_len > max_len {
             return Err(Error::InvalidLength);
         }
 
-        let data = self.slice(..len);
-        self.advance(data.len());
+        let end_plus_padding = payload_len + pad_length(payload_len as u32) as usize;
 
-        Ok(data)
+        // Validate the subslice is within the data buffer
+        if end_plus_padding > self.len() {
+            return Err(Error::InvalidLength);
+        }
+
+        let body = self.slice(..payload_len);
+        self.advance(end_plus_padding);
+
+        Ok(body)
     }
 }

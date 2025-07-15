@@ -9,18 +9,15 @@ fuzz_target!(|data: &[u8]| {
     let bytes = Bytes::copy_from_slice(data);
     let msg = RpcMessage::try_from(bytes);
     if let Ok(m) = msg {
-        let mut buf = m.serialise().expect("should be able to serialise");
-        assert_eq!(buf.as_slice(), data);
-
-        // And check it matches the "TryFrom slice" data too
+        // Assert round-tripping with Bytes and a byte slice produce identical
+        // outputs.
         let slice_msg = RpcMessage::try_from(data).expect("failed to parse from bytes");
+        let slice_buf = slice_msg.serialise().expect("should be able to serialise");
 
-        buf.clear();
-        let mut c = std::io::Cursor::new(buf);
-        slice_msg
-            .serialise_into(&mut c)
-            .expect("should be able to serialise");
-
-        assert_eq!(c.into_inner().as_slice(), data);
+        let bytes_buf = m.serialise().expect("should be able to serialise");
+        assert_eq!(slice_buf, bytes_buf, "equality");
+    } else {
+        // Equality between bytes and slice decoder.
+        assert!(RpcMessage::try_from(data).is_err());
     }
 });

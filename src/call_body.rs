@@ -47,8 +47,15 @@ impl<'a> CallBody<&'a [u8], &'a [u8]> {
         let auth_credentials = AuthFlavor::from_cursor(r)?;
         let auth_verifier = AuthFlavor::from_cursor(r)?;
 
+        // NOTE: this payload does not use an Opaque as it is not defined as an
+        // opaque byte array (that necessitates padding) in the spec.
+
         let data = *r.get_ref();
         let start = r.position() as usize;
+        if start > data.len() {
+            return Err(Error::IncompleteHeader);
+        }
+
         let payload = &data[start..];
 
         Ok(CallBody {
@@ -210,10 +217,11 @@ mod tests {
     // auth buffer.
     #[test]
     fn test_differing_payload_type() {
-        let auth = AuthFlavor::AuthNone(Some(vec![42]));
+        let binding = vec![42];
+        let auth = AuthFlavor::AuthNone(Some(binding.as_slice()));
         let payload = [42, 42, 42, 42];
 
-        let _call: CallBody<Vec<u8>, &[u8; 4]> =
+        let _call: CallBody<&[u8], &[u8; 4]> =
             CallBody::new(100000, 42, 13, auth.clone(), auth, &payload);
     }
 }
