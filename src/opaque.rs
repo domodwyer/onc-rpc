@@ -114,7 +114,7 @@ where
 // checksummed.  Forcing the padded bytes to be zero ensures this.
 #[inline]
 pub(crate) fn pad_length(l: u32) -> u32 {
-    if l % 4 == 0 {
+    if l.is_multiple_of(4) {
         return 0;
     }
     4 - (l % 4)
