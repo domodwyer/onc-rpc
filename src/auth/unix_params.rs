@@ -64,7 +64,7 @@ impl FromIterator<u32> for Gids {
 /// The structure is implemented as specified in `APPENDIX A` of
 /// [RFC1831](https://tools.ietf.org/html/rfc1831).
 ///
-/// The client-provided machine name is limited to, at most, 16 bytes. If
+/// The client-provided machine name is limited to, at most, 255 bytes. If
 /// additional group IDs ([`AuthUnixParams::gids()`]) are provided, the protocol
 /// allows for at most 16 values.
 ///
@@ -137,7 +137,7 @@ where
     ///
     /// # Panics
     ///
-    /// Panics if the machine name exceeds 16 bytes, or `gids` contains more
+    /// Panics if the machine name exceeds 255 bytes, or `gids` contains more
     /// than 16 elements.
     pub fn new(
         stamp: u32,
@@ -146,7 +146,7 @@ where
         gid: u32,
         gids: impl IntoIterator<Item = u32>,
     ) -> Self {
-        assert!(machine_name.as_ref().len() <= 16);
+        assert!(machine_name.as_ref().len() <= MAX_MACHINE_NAME_LEN as usize);
 
         Self {
             stamp,
