@@ -49,13 +49,14 @@ jobs:
           persist-credentials: false
 
       - name: Create GitHub release
+        if: ${{ ! env.ACT }}
         uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda
         with:
           generate_release_notes: true
 
   # Publish the crate (scoping the secret to only this job)
   publish_crate:
-    needs: [build, test, lint, fuzz, github_release]
+    needs: [build, test, lint, fuzz]
     env:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
 
