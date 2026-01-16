@@ -56,7 +56,7 @@ jobs:
 
   # Publish the crate (scoping the secret to only this job)
   publish_crate:
-    needs: [build, test, lint, fuzz]
+    needs: [build, test, lint, fuzz, check_version]
     env:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
 
